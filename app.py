@@ -27,4 +27,4 @@ if st.button("Show Definition"):
 # Button to go to next word
 if st.button("Next Word ➡️"):
     st.session_state.index = (st.session_state.index + 1) % len(data)
-  st.rerun()
+    st.rerun()
