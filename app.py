@@ -338,6 +338,6 @@ else:
         if c2.button("Next Question ➡️"):
             st.session_state.quiz["num"] += 1
             st.session_state.quiz["q"] = make_quiz_item(pool)
-            st.experimental_rerun()
+            st.rerun()
 
         st.info(f"Score: **{st.session_state.quiz['score']}** / {st.session_state.quiz['num']}")
