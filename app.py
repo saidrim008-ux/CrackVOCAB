@@ -5,11 +5,76 @@ from datetime import date, timedelta
 from pathlib import Path
 
 # ===================== Config =====================
-LEARNED_LIMIT = 10                 # recent pool size used by Quiz
+LEARNED_LIMIT = 10                  # recent pool size used by Quiz
 PROGRESS_FILE = Path("progress.json")
+STREAK_WINDOW = 30                  # visual window for the streak bar length (days)
+BRAND_PRIMARY = "#2563eb"           # study-vibe blue
+BRAND_ACCENT  = "#10b981"           # calm green
+BG_GRADIENT   = "linear-gradient(180deg, #f6fbff 0%, #f1f5ff 100%)"
+
+# ===================== Global style =====================
+st.set_page_config(page_title="crackVOCAB", page_icon="📘", layout="wide")
+st.markdown(
+    f"""
+    <style>
+      .stApp {{
+        background: {BG_GRADIENT};
+      }}
+      /* Headings */
+      h1, h2, h3, .stMarkdown h1, .stMarkdown h2 {{
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      }}
+      /* Buttons */
+      div.stButton > button {{
+        background: {BRAND_PRIMARY};
+        color: white;
+        border: 0;
+        padding: 0.6rem 1.1rem;
+        border-radius: 12px;
+        font-weight: 600;
+      }}
+      div.stButton > button:hover {{
+        background: #1e4fbf;
+      }}
+      /* Accent buttons (secondary) */
+      .accent button {{
+        background: {BRAND_ACCENT} !important;
+      }}
+      /* Cards */
+      .card {{
+        background: #ffffffcc;
+        border: 1px solid #e6ecff;
+        box-shadow: 0 8px 20px rgba(37,99,235,0.08);
+        border-radius: 16px;
+        padding: 1.1rem 1.2rem;
+      }}
+      /* Streak bar */
+      .streak-wrap {{
+        background: #e5edff;
+        border-radius: 999px;
+        height: 10px;
+        width: 100%;
+        overflow: hidden;
+      }}
+      .streak-fill {{
+        background: {BRAND_PRIMARY};
+        height: 100%;
+        transition: width 300ms ease;
+      }}
+      .muted {{
+        color: #5b6b7a;
+      }}
+      /* Sidebar select style */
+      section[data-testid="stSidebar"] {{
+        background: #f7f9ff;
+        border-right: 1px solid #e9efff;
+      }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 # ===================== Data =====================
-# ONE master file with ALL words (e.g., 190 rows)
 data = (
     pd.read_csv("words.csv")
       .dropna()
@@ -25,8 +90,8 @@ def load_progress():
             return json.loads(PROGRESS_FILE.read_text(encoding="utf-8"))
         except Exception:
             pass
-    # dates: list of "YYYY-MM-DD"; mastered_idxs: list of row indices
-    return {"dates": [], "mastered_idxs": []}
+    # dates: ["YYYY-MM-DD"], mastered_idxs: [int], name: str | None
+    return {"dates": [], "mastered_idxs": [], "name": None, "first_seen": None}
 
 def save_progress(p):
     PROGRESS_FILE.write_text(json.dumps(p, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -53,17 +118,20 @@ def consecutive_streak(dates_list):
         d -= timedelta(days=1)
     return streak
 
-def week_flags(dates_list):
-    s = set(dates_list)
-    out = []
-    for i in range(6, -1, -1):  # last 7 days (older -> today)
-        d = date.today() - timedelta(days=i)
-        out.append((d.strftime("%a"), str(d) in s))
-    return out
+def streak_bar_html(streak: int, window: int = STREAK_WINDOW):
+    # fill width clamps at 100% but number keeps growing
+    pct = min(streak, window) / max(1, window) * 100
+    return f"""
+      <div class="streak-wrap"><div class="streak-fill" style="width:{pct:.2f}%"></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+        <div style="font-weight:700;">🔥 {streak}-day streak</div>
+        <div class="muted">goal view: last {window} days</div>
+      </div>
+    """
 
 # ===================== Session =====================
 if "mode" not in st.session_state:
-    st.session_state.mode = "Home"  # land on intro first
+    st.session_state.mode = "Welcome"   # show welcome gate first
 if "index" not in st.session_state:
     st.session_state.index = 0
 if "learned_recent" not in st.session_state:
@@ -98,99 +166,122 @@ def make_quiz_item(pool):
         "row": row,
     }
 
-# ===================== UI: Title =====================
-st.title("📘 crackVOCAB")
+# ===================== Sidebar (hidden on Welcome) =====================
+if st.session_state.mode != "Welcome":
+    # Navigation
+    st.session_state.mode = st.sidebar.radio(
+        "Go to", ["Home", "Words", "Quiz"],
+        index=["Home","Words","Quiz"].index(st.session_state.mode) if st.session_state.mode in ["Home","Words","Quiz"] else 0
+    )
 
-# ===================== Sidebar =====================
-# Navigation
-st.session_state.mode = st.sidebar.radio("Go to", ["Home", "Words", "Quiz"],
-                                         index=["Home", "Words", "Quiz"].index(st.session_state.mode))
+    # Word list
+    if st.session_state.mode != "Home":
+        st.sidebar.markdown("### 📚 Word list")
+        st.sidebar.write(f"Total words: **{TOTAL_WORDS}**")
+        q = st.sidebar.text_input("Search")
+        labels = [f"{w} ({p})" for w, p in zip(data["word"], data["part_of_speech"])]
+        if q:
+            filtered = [(i, lbl) for i, lbl in enumerate(labels) if q.lower() in lbl.lower()]
+        else:
+            filtered = list(enumerate(labels))
+        if filtered:
+            idx_opts = [i for i, _ in filtered]
+            lbl_opts = [lbl for _, lbl in filtered]
+            sel = st.sidebar.selectbox("Select a word", lbl_opts, index=0, key="sel_word")
+            st.session_state.index = idx_opts[lbl_opts.index(sel)]
+        else:
+            st.sidebar.info("No words match your search.")
 
-# Word list (search + picker) when not on Home
-if st.session_state.mode != "Home":
-    st.sidebar.markdown("### 📚 Word list")
-    st.sidebar.write(f"Total words: **{TOTAL_WORDS}**")
-    query = st.sidebar.text_input("Search")
-    labels = [f"{w} ({p})" for w, p in zip(data["word"], data["part_of_speech"])]
-    if query:
-        filtered = [(i, lbl) for i, lbl in enumerate(labels) if query.lower() in lbl.lower()]
-    else:
-        filtered = list(enumerate(labels))
+    # Streak + progress (smooth line + count)
+    with st.sidebar:
+        st.markdown("---")
+        streak = consecutive_streak(progress["dates"])
+        st.subheader("🔥 Streak")
+        st.markdown(streak_bar_html(streak), unsafe_allow_html=True)
 
-    if filtered:
-        idx_opts = [i for i, _ in filtered]
-        lbl_opts = [lbl for _, lbl in filtered]
-        sel = st.sidebar.selectbox("Select a word", lbl_opts, index=0)
-        st.session_state.index = idx_opts[lbl_opts.index(sel)]
-    else:
-        st.sidebar.info("No words match your search.")
+        mastered_count = len(progress["mastered_idxs"])
+        st.subheader("📈 Progress")
+        st.write(f"Words mastered: **{mastered_count} / {TOTAL_WORDS}**")
+        st.progress((mastered_count / TOTAL_WORDS) if TOTAL_WORDS else 0.0)
 
-# Streak + progress
-with st.sidebar:
-    st.markdown("---")
-    streak = consecutive_streak(progress["dates"])
-    st.subheader("🔥 Streak")
-    st.write(f"Consecutive days: **{streak}**")
-    cols7 = st.columns(7)
-    for (lbl, ok), c in zip(week_flags(progress["dates"]), cols7):
-        c.markdown(f"**{lbl}**\n\n{'✅' if ok else '—'}")
-
-    mastered_count = len(progress["mastered_idxs"])
-    st.subheader("📈 Progress")
-    st.write(f"Words mastered: **{mastered_count} / {TOTAL_WORDS}**")
-    # Avoid div-by-zero if somehow list is empty
-    st.progress((mastered_count / TOTAL_WORDS) if TOTAL_WORDS else 0.0)
-
-    st.write(f"Quiz pool (recent): **{len(st.session_state.learned_recent)} / {LEARNED_LIMIT}**")
-    if st.button("Clear recent pool"):
-        st.session_state.learned_recent = []
-        st.success("Recent pool cleared.")
+        st.write(f"Quiz pool (recent): **{len(st.session_state.learned_recent)} / {LEARNED_LIMIT}**")
+        if st.button("Clear recent pool"):
+            st.session_state.learned_recent = []
+            st.success("Recent pool cleared.")
 
 # ===================== Pages =====================
-if st.session_state.mode == "Home":
-    # Intro / landing page (like before)
-    st.header("Welcome to crackVOCAB 👋")
+
+# ---- Welcome gate: name capture ----
+if st.session_state.mode == "Welcome":
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.header("Welcome to your favorite spot ✨")
+    st.write("Let's personalize your experience. Enter your **full name** to begin.")
+    default_name = progress.get("name") or ""
+    name = st.text_input("Full name", value=default_name, placeholder="e.g., Youssef Said")
+    colA, colB = st.columns([1,3])
+    with colA:
+        if st.button("Go →"):
+            clean = name.strip()
+            if clean:
+                progress["name"] = clean
+                if not progress.get("first_seen"):
+                    progress["first_seen"] = str(date.today())
+                save_progress(progress)
+                st.session_state.mode = "Home"
+                st.rerun()
+            else:
+                st.warning("Please enter your full name to continue.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ---- Home (intro) ----
+elif st.session_state.mode == "Home":
+    user = progress.get("name") or "there"
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.header(f"Hi {user}, welcome to crackVOCAB 👋")
     st.write(
         """
 **crackVOCAB** helps you master **advanced English vocabulary** with bilingual
-(English–French–Arabic) explanations.
+(English–French–Arabic) explanations — built for focus and flow.
 
 **How it works**
-1) Go to **Words** → pick any word from the list on the left (use search).
+1) Open **Words** (left sidebar), pick any word (use search or scroll).
 2) Click **Show Definition**, then **Mark as Learned** when you’re ready.
-3) Your **daily streak** and **lifetime progress** update automatically.
+3) Your **streak** (🔥 smooth line) and **lifetime progress** update automatically.
 4) Use **Quiz** to practice only your **recently learned** words (last 10 by default).
         """
     )
-    if st.button("Start learning →"):
-        st.session_state.mode = "Words"
-        st.rerun()
+    col1, col2 = st.columns([1,3])
+    with col1:
+        st.button("Start learning →", on_click=lambda: (st.session_state.update({"mode":"Words"}), None), key="start_btn")
+    st.markdown("</div>", unsafe_allow_html=True)
 
+# ---- Words (Learn) ----
 elif st.session_state.mode == "Words":
-    # Learn page
     row = data.iloc[st.session_state.index]
     st.header("Words")
     st.subheader(f"{row['word']} ({row['part_of_speech']})")
 
-    if st.button("Show Definition"):
+    if st.button("Show Definition", key="show_def"):
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
         st.write(f"**Definition:** {row['definition']}")
         st.write(f"**French:** {row['french']}")
         st.write(f"**Arabic:** {row['arabic']}")
         st.write(f"**Example:** {row['example']}")
+        st.markdown("</div>", unsafe_allow_html=True)
 
     c1, c2, c3 = st.columns(3)
-    if c1.button("⬅️ Previous"):
+    if c1.button("⬅️ Previous", key="prev"):
         next_index(-1); st.rerun()
-    if c2.button("Mark as Learned ✅"):
+    if c2.container().button("Mark as Learned ✅", key="learn", help="Adds to streak, mastered list, and quiz pool"):
         mark_active_today()
         add_mastered(st.session_state.index)
         add_recent(st.session_state.index)
         st.toast("Added to learned + streak updated"); st.rerun()
-    if c3.button("Next ➡️"):
+    if c3.button("Next ➡️", key="next"):
         next_index(1); st.rerun()
 
+# ---- Quiz ----
 else:
-    # Quiz page (from recent learned pool only)
     pool = st.session_state.learned_recent
     st.header("Quiz")
     if not pool:
@@ -205,7 +296,7 @@ else:
         choice = st.radio("Choose one:", q["choices"], index=None, key=f"q{st.session_state.quiz['num']}")
 
         c1, c2 = st.columns(2)
-        if c1.button("Check"):
+        if c1.button("Check", key="check"):
             if choice is None:
                 st.warning("Pick an answer first 🙂")
             else:
@@ -220,12 +311,12 @@ else:
                     st.write(f"**French:** {r['french']}")
                     st.write(f"**Arabic:** {r['arabic']}")
                     st.write(f"**Example:** {r['example']}")
+                # count quiz interaction as activity, too
                 mark_active_today()
 
-        if c2.button("Next Question ➡️"):
+        if c2.button("Next Question ➡️", key="nextq"):
             st.session_state.quiz["num"] += 1
             st.session_state.quiz["q"] = make_quiz_item(pool)
             st.rerun()
 
         st.info(f"Score: **{st.session_state.quiz['score']}** / {st.session_state.quiz['num']}")
-
