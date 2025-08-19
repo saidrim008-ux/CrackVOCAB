@@ -1,416 +1,400 @@
-# app.py — crackVOCAB (welcome → sidebar layout, beach theme)
-
 import streamlit as st
 import pandas as pd
 import random, json
 from datetime import date, timedelta
 from pathlib import Path
-# ---------------------------
-# Load progress or create new
-# ---------------------------
-import os, json
-from datetime import date
 
-PROGRESS_FILE = "progress.json"
-
-def load_progress():
-    if os.path.exists(PROGRESS_FILE):
-        with open(PROGRESS_FILE, "r") as f:
-            try:
-                return json.load(f)
-            except:
-                return {}
-    return {}
-
-def save_progress(progress):
-    with open(PROGRESS_FILE, "w") as f:
-        json.dump(progress, f)
-
-# Always start with something valid
-progress = load_progress()
-if not isinstance(progress, dict):
-    progress = {}
-
-progress.setdefault("name", "")
-progress.setdefault("learned", [])
-progress.setdefault("recent_pool", [])
-progress.setdefault("streak_days", 0)
-# ---------------------------
-# Welcome Screen (if no name)
-# ---------------------------
-if not progress.get("name"):
-    st.markdown(
-        """
-        <div style="background-color:#F5F5DC; padding:40px; border-radius:10px;">
-            <h1 style="color:#111; text-align:center;">Let’s master our vocabulary together 💪</h1>
-            <p style="text-align:center;">Enter your <b>name</b> or <b>nickname</b> to personalize your experience.</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    name = st.text_input("Enter your name or nickname", "")
-    if st.button("Go →"):
-        clean = (name or "").strip()
-        if clean:
-            progress["name"] = clean
-            save_progress(progress)
-            st.rerun()  # reload with name set
-
-    st.stop()  # stop here → don’t show the rest
-
-# Ensure progress dictionary
-progress = progress if isinstance(progress, dict) else {}
-progress.setdefault("name", "")
-progress.setdefault("learned", [])
-progress.setdefault("recent_pool", [])
-progress.setdefault("streak_days", 0)
-
-# --------------------------
-# FORCE WELCOME SCREEN FIRST
-# --------------------------
-if not progress.get("name"):  
-    st.markdown("<h1 style='color:#111;'>Let’s master our vocabulary together 💪</h1>", unsafe_allow_html=True)
-    name = st.text_input("Enter your name or nickname", "")
-    if st.button("Go →"):
-        clean = (name or "").strip()
-        if clean:
-            progress["name"] = clean
-            try:
-                save_progress(progress)
-            except Exception:
-                pass
-            st.rerun()  # refresh → now will go to Home
-    st.stop()  # ⛔ stop here, don’t show sidebar or other pages
-
-# =========================
-# THEME & PAGE CONFIG
-# =========================
-BEIGE_BG   = "#F3E6D8"   # app background
-SIDEBAR_BG = "#D9C3A8"   # soft brown/beige for sidebar
-SKY        = "#38bdf8"   # sky-blue buttons
-SKY_HOVER  = "#0ea5e9"   # button hover
-TEXT       = "#111111"
-
+# ===================== App setup =====================
 st.set_page_config(page_title="crackVOCAB", page_icon="📘", layout="wide")
 
-# Global CSS: all pages beige, sidebar soft brown, buttons sky-blue, text black
-st.markdown(
-    f"""
-    <style>
-      /* App background + text */
-      .stApp, html, body {{
-        background: {BEIGE_BG} !important;
-        color: {TEXT} !important;
-      }}
+# ===================== Theme Colors (from your inspo) =====================
+RUST = "#8a3f21"       # left image (sidebar)
+BEIGE = "#e3b896"      # right image (home page)
+BLUE = "#2563eb"       # buttons
+BLUE_HOVER = "#1e4fbf"
 
-      /* Sidebar */
-      section[data-testid="stSidebar"] {{
-        background: {SIDEBAR_BG} !important;
-        color: {TEXT} !important;
-        border-right: 1px solid rgba(0,0,0,0.08);
-      }}
-      section[data-testid="stSidebar"] * {{ color: {TEXT} !important; }}
-
-      /* Inputs (search/select/text) */
-      input, textarea, select, div[data-baseweb="select"], .stTextInput input {{
-        background: #fff !important;
-        color: {TEXT} !important;
-        border: 1px solid #cfcfcf !important;
-        border-radius: 10px !important;
-      }}
-
-      /* Buttons (Go, Start learning, Show Definition, Previous, Next, Mark as Learned, Reset, Home/Learn/Quiz) */
-      .stButton button {{
-        background: {SKY} !important;
-        color: #fff !important;
-        border: none !important;
-        border-radius: 12px !important;
-        padding: 10px 16px !important;
-        font-weight: 700 !important;
-      }}
-      .stButton button:hover {{ background: {SKY_HOVER} !important; }}
-
-      /* Card look */
-      .card {{
-        background: rgba(255,255,255,0.9);
-        border: 1px solid rgba(0,0,0,0.08);
-        border-radius: 14px;
-        padding: 14px 16px;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.05);
-      }}
-
-      /* Streak bar */
-      .streak-rail {{
-        width: 100%; height: 8px; background: rgba(0,0,0,0.15);
-        border-radius: 999px; overflow: hidden;
-      }}
-      .streak-fill {{ height: 100%; background: {SKY}; transition: width .3s ease; }}
-      .muted {{ color: rgba(0,0,0,0.65) !important; font-size: 0.9rem; }}
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# =========================
-# DATA / STORAGE
-# =========================
-DATA_FILE = Path("words.csv")
+# ===================== Data =====================
+LEARNED_LIMIT = 10
 PROGRESS_FILE = Path("progress.json")
+STREAK_WINDOW = 30
 
-@st.cache_data
-def load_words():
-    if not DATA_FILE.exists():
-        st.error("words.csv not found at repo root.")
-        st.stop()
-    df = pd.read_csv(DATA_FILE).dropna(subset=["word"]).drop_duplicates(subset=["word"]).reset_index(drop=True)
-    cols = ["word","part_of_speech","definition","french","arabic","example"]
-    for c in cols:
-        if c not in df.columns:
-            df[c] = ""
-    return df[cols]
+data = (
+    pd.read_csv("words.csv")
+      .dropna()
+      .drop_duplicates(subset=["word"])
+      .reset_index(drop=True)
+)
+TOTAL_WORDS = len(data)
 
+# ===================== Persistence =====================
 def load_progress():
     if PROGRESS_FILE.exists():
         try:
             return json.loads(PROGRESS_FILE.read_text(encoding="utf-8"))
         except Exception:
             pass
-    return {}
+    return {"dates": [], "mastered_idxs": [], "name": None, "first_seen": None}
 
 def save_progress(p):
     PROGRESS_FILE.write_text(json.dumps(p, ensure_ascii=False, indent=2), encoding="utf-8")
 
-data = load_words()
-TOTAL_WORDS = len(data)
-
-# normalize progress keys (safe for old files)
 progress = load_progress()
-defaults = {
-    "name": "",
-    "learned": [],
-    "recent_pool": [],
-    "opened_dates": [],   # for streak
-    "streak_days": 0
-}
-for k, v in defaults.items():
-    if k not in progress: progress[k] = v
-save_progress(progress)
 
-# =========================
-# SESSION STATE
-# =========================
-ss = st.session_state
-ss.setdefault("mode", "Welcome" if not progress.get("name") else "Home")  # force Welcome until name saved
-ss.setdefault("index", 0)
-ss.setdefault("show_def", False)
-ss.setdefault("quiz_q", None)
-ss.setdefault("quiz_choices", [])
-ss.setdefault("quiz_score", 0)
-ss.setdefault("quiz_total", 0)
+def mark_active_today():
+    today = str(date.today())
+    if today not in progress["dates"]:
+        progress["dates"].append(today)
+        save_progress(progress)
 
-# =========================
-# STREAK (count daily opens)
-# =========================
-today = date.today()
-if str(today) not in progress["opened_dates"]:
-    yest = today - timedelta(days=1)
-    if str(yest) in progress["opened_dates"]:
-        progress["streak_days"] = int(progress.get("streak_days", 0)) + 1
-    else:
-        progress["streak_days"] = 1
-    progress["opened_dates"].append(str(today))
-    save_progress(progress)
+def add_mastered(idx: int):
+    if idx not in progress["mastered_idxs"]:
+        progress["mastered_idxs"].append(idx)
+        save_progress(progress)
 
-# =========================
-# SIDEBAR (always visible on main app screens)
-# =========================
-with st.sidebar:
-    st.markdown("### Navigate")
-    nav1, nav2, nav3 = st.columns(3)
-    if nav1.button("Home"):
-        ss.mode = "Home"; ss.show_def = False
-    if nav2.button("Learn"):
-        ss.mode = "Learn"; ss.show_def = False
-    if nav3.button("Quiz"):
-        ss.mode = "Quiz"; ss.quiz_q = None; ss.quiz_choices = []
+# ===================== Streak helpers =====================
+from datetime import timedelta
+def consecutive_streak(dates_list):
+    s = set(dates_list)
+    streak, d = 0, date.today()
+    while str(d) in s:
+        streak += 1
+        d -= timedelta(days=1)
+    return streak
 
-    st.markdown("---")
-    st.markdown("### 📚 Word list")
-    st.caption(f"Total words: **{TOTAL_WORDS}**")
-    search = st.text_input("Search words")
-    if search:
-        matches = data[data["word"].str.contains(search, case=False, na=False)]
-    else:
-        matches = data
-    # current selection
-    current_word = data.iloc[ss.index]["word"]
-    drop = st.selectbox("Select a word", matches["word"].tolist() if not matches.empty else data["word"].tolist())
-    if drop != current_word:
-        try:
-            ss.index = int(data.index[data["word"] == drop][0])
-            ss.show_def = False
-        except Exception:
-            pass
+def streak_bar_html(streak: int, window: int = STREAK_WINDOW):
+    pct = min(streak, window) / max(1, window) * 100
+    return f"""
+      <div class="streak-wrap"><div class="streak-fill" style="width:{pct:.2f}%"></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+        <div style="font-weight:700;">🔥 {streak}-day streak</div>
+        <div class="muted">view last {window} days</div>
+      </div>
+    """
 
-    st.markdown("---")
-    st.markdown("### 🔥 Streak")
-    days = max(1, min(progress.get("streak_days", 0), 30))
-    pct = int(days/30 * 100)
-    st.markdown(f"""
-      <div class="streak-rail"><div class="streak-fill" style="width:{pct}%"></div></div>
-      <div class="muted" style="margin-top:6px;">{progress.get('streak_days',0)} day streak</div>
-    """, unsafe_allow_html=True)
+# ===================== Session =====================
+if "mode" not in st.session_state:
+    st.session_state.mode = "Welcome"
+if "index" not in st.session_state:
+    st.session_state.index = 0
+if "learned_recent" not in st.session_state:
+    st.session_state.learned_recent = []
+if "quiz" not in st.session_state:
+    st.session_state.quiz = {"q": None, "score": 0, "num": 0}
 
-    st.markdown("### ☑️ Progress")
-    st.caption(f"Words mastered: **{len(progress.get('learned', []))} / {TOTAL_WORDS}**")
+# ===================== Page-specific CSS =====================
+def apply_base_css(sidebar_color: str, app_bg: str = None, use_image=False):
+    """
+    sidebar_color: hex (e.g., RUST)
+    app_bg: hex or None
+    use_image: if True, uses bg_welcome.jpg as background instead of color
+    """
+    bg_css = (
+        f"background: url('bg_welcome.jpg') center center/cover no-repeat fixed;"
+        if use_image else
+        (f"background: {app_bg};" if app_bg else
+         "background: linear-gradient(180deg, #f6fbff 0%, #eef3ff 100%);")
+    )
 
-# =========================
-# PAGES
-# =========================
+    st.markdown(
+        f"""
+        <style>
+          /* App background */
+          .stApp {{
+            {bg_css}
+            color: #111 !important;
+          }}
 
-# --- WELCOME (first screen) ---
-if ss.mode == "Welcome":
+          /* Sidebar colors (rust) */
+          section[data-testid="stSidebar"] {{
+            background: {sidebar_color};
+            color: #fff !important;
+            border-right: 1px solid rgba(0,0,0,0.08);
+          }}
+          section[data-testid="stSidebar"] * {{
+            color: #fff !important;
+          }}
+
+          /* Headings + text (black) */
+          html, body, [class*="st-"], .stMarkdown, .stMarkdown p, .stMarkdown span {{
+            color: #111 !important;
+          }}
+          h1, h2, h3, .stMarkdown h1, .stMarkdown h2 {{
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+            color: #111 !important;
+          }}
+
+          /* Inputs: white box, dark text */
+          .stTextInput > div > div input {{
+            background: #fff !important;
+            color: #111 !important;
+            border: 1px solid #d1d5db !important;
+            border-radius: 12px !important;
+          }}
+
+          /* Default buttons (Show Definition, Previous, Next, etc.) */
+          div.stButton > button {{
+            background: {BLUE};
+            color: #fff !important;
+            border: 0;
+            padding: 10px 16px;
+            border-radius: 12px;
+            font-weight: 600;
+          }}
+          div.stButton > button:hover {{ background: {BLUE_HOVER}; }}
+
+          /* Card look */
+          .card {{
+            background: #ffffffcc;
+            border: 1px solid rgba(0,0,0,0.06);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+            border-radius: 16px;
+            padding: 1.1rem 1.2rem;
+          }}
+
+          /* Streak bar */
+          .streak-wrap {{
+            background: #e5edff;
+            border-radius: 999px;
+            height: 10px;
+            width: 100%;
+            overflow: hidden;
+          }}
+          .streak-fill {{
+            background: {BLUE};
+            height: 100%;
+            transition: width 300ms ease;
+          }}
+          .muted {{ color: #5b6b7a !important; }}
+
+          /* Special: Mark as Learned (same blue, pill) */
+          .learn-btn button {{
+            background: {BLUE} !important;
+            color: #fff !important;
+            border-radius: 22px !important;
+            padding: 10px 18px !important;
+          }}
+          .learn-btn button:hover {{ background: {BLUE_HOVER} !important; }}
+
+          /* Special: Home button (green) */
+          .home-btn button {{
+            background: #22c55e !important;
+            color: #fff !important;
+            border-radius: 10px !important;
+            padding: 10px 16px !important;
+            font-weight: 700 !important;
+          }}
+          .home-btn button:hover {{ background: #16a34a !important; }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+# ===================== Helpers =====================
+def add_recent(idx):
+    L = st.session_state.learned_recent
+    if idx in L: L.remove(idx)
+    L.insert(0, idx)
+    st.session_state.learned_recent = L[:LEARNED_LIMIT]
+
+def next_index(delta):
+    st.session_state.index = (st.session_state.index + delta) % TOTAL_WORDS
+
+def make_quiz_item(pool):
+    i = random.choice(pool)
+    row = data.iloc[i]
+    others = pool.copy()
+    if i in others:
+        others.remove(i)
+    pick = random.sample(others, k=min(3, len(others))) if others else []
+    choices = [row["word"]] + [data.iloc[j]["word"] for j in pick]
+    random.shuffle(choices)
+    return {
+        "prompt": f'Which word matches this definition?\n\n**{row["definition"]}**',
+        "choices": choices,
+        "correct": choices.index(row["word"]),
+        "row": row,
+    }
+
+# ===================== Sidebar (hide on Welcome) =====================
+def render_sidebar():
+    st.session_state.mode = st.sidebar.radio(
+        "Go to", ["Home", "Words", "Quiz"],
+        index=["Home","Words","Quiz"].index(st.session_state.mode) if st.session_state.mode in ["Home","Words","Quiz"] else 0
+    )
+
+    if st.session_state.mode != "Home":
+        st.sidebar.markdown("### 📚 Word list")
+        st.sidebar.write(f"Total words: **{TOTAL_WORDS}**")
+        q = st.sidebar.text_input("Search")
+        labels = [f"{w} ({p})" for w, p in zip(data["word"], data["part_of_speech"])]
+        if q:
+            filtered = [(i, lbl) for i, lbl in enumerate(labels) if q.lower() in lbl.lower()]
+        else:
+            filtered = list(enumerate(labels))
+        if filtered:
+            idx_opts = [i for i, _ in filtered]
+            lbl_opts = [lbl for _, lbl in filtered]
+            sel = st.sidebar.selectbox("Select a word", lbl_opts, index=0, key="sel_word")
+            st.session_state.index = idx_opts[lbl_opts.index(sel)]
+        else:
+            st.sidebar.info("No words match your search.")
+
+    with st.sidebar:
+        st.markdown("---")
+        streak = consecutive_streak(progress["dates"])
+        st.subheader("🔥 Streak")
+        st.markdown(streak_bar_html(streak), unsafe_allow_html=True)
+
+        mastered_count = len(progress["mastered_idxs"])
+        st.subheader("📈 Progress")
+        st.write(f"Words mastered: **{mastered_count} / {TOTAL_WORDS}**")
+        st.progress((mastered_count / TOTAL_WORDS) if TOTAL_WORDS else 0.0)
+
+        st.write(f"Quiz pool (recent): **{len(st.session_state.learned_recent)} / {LEARNED_LIMIT}**")
+        st.markdown('<div class="home-btn">', unsafe_allow_html=True)
+        if st.button("🏠 Home", key="home_sidebar"):
+            st.session_state.mode = "Home"; st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# ===================== PAGES =====================
+
+# ---- Welcome (nickname) with IMAGE background + rust sidebar ----
+if st.session_state.mode == "Welcome":
+    apply_base_css(sidebar_color=RUST, use_image=True)  # bg_welcome.jpg
+
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.title("Let’s master vocabulary together 💪")
     st.write("Enter your **name or nickname** to personalize your experience.")
-    name = st.text_input("Enter your name or nickname", value=progress.get("name",""))
+
+    default_name = progress.get("name") or ""
+    nickname = st.text_input("Enter your name or nickname", value=default_name, placeholder="e.g., Youssef / Laila / Ayman")
+
+    if progress.get("name"):
+        st.caption(f"Saved name: **{progress['name']}**")
+
     if st.button("Go →"):
-        clean = (name or "").strip()
+        clean = nickname.strip()
         if clean:
             progress["name"] = clean
+            if not progress.get("first_seen"):
+                progress["first_seen"] = str(date.today())
             save_progress(progress)
-            ss.mode = "Home"
+            st.session_state.mode = "Home"
             st.rerun()
         else:
-            st.warning("Please enter a name or nickname to continue.")
+            st.warning("Please enter your name or nickname to continue.")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# --- HOME ---
-elif ss.mode == "Home":
-    nm = progress.get("name","").strip() or "friend"
-    st.title(f"Hi {nm}, welcome to **crackVOCAB** 📘")
-    st.markdown(
+# ---- Home (intro) with BEIGE background + rust sidebar ----
+elif st.session_state.mode == "Home":
+    apply_base_css(sidebar_color=RUST, app_bg=BEIGE, use_image=False)
+
+    render_sidebar()  # show sidebar on Home
+
+    user = progress.get("name") or "there"
+    st.markdown("<div class='card'>", unsafe_allow_html=True)
+    st.header(f"Hi there, **{user}** — welcome to crackVOCAB 👋")
+    st.write(
         """
-        **crackVOCAB** helps you master **advanced English vocabulary** with bilingual
-        (English–French–Arabic) explanations — built for focus and flow.
+**crackVOCAB** helps you master **advanced English vocabulary** with bilingual
+(English–French–Arabic) explanations — built for focus and flow.
+
+**How it works**
+1) Open **Words** (left sidebar), pick any word (use search or scroll).
+2) Click **Show Definition**, then **Mark as Learned** when you’re ready.
+3) Your **streak** (🔥 smooth line) and **lifetime progress** update automatically.
+4) Use **Quiz** to practice only your **recently learned** words (last 10 by default).
         """
     )
-    st.markdown("#### How it works")
-    st.markdown(
-        """
-1) Use the **Word list** in the left sidebar to pick a word (or search).  
-2) Click **Show Definition**, then **Mark as Learned** when you’re ready.  
-3) Your **streak** (smooth line) and **lifetime progress** update automatically.  
-4) **Quiz** practices only your **recently learned** words (last 10 by default).
-        """
-    )
-    st.button("Start learning →", on_click=lambda: ss.update({"mode":"Learn"}))
+    st.button("Start learning →", on_click=lambda: st.session_state.update({"mode": "Words"}))
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# --- LEARN ---
-elif ss.mode == "Learn":
-    row = data.iloc[ss.index]
-    st.header("Learn")
+# ---- Words (learn) with subtle gradient + rust sidebar ----
+elif st.session_state.mode == "Words":
+    apply_base_css(sidebar_color=RUST)  # default gradient
+    render_sidebar()
+
+    row = data.iloc[st.session_state.index]
+    st.header("Words")
     st.subheader(f"{row['word']} ({row['part_of_speech']})")
 
-    c1, c2, c3 = st.columns([1,1,1])
+    if st.button("Show Definition"):
+        st.markdown("<div class='card'>", unsafe_allow_html=True)
+        st.write(f"**Definition:** {row['definition']}")
+        st.write(f"**French:** {row['french']}")
+        st.write(f"**Arabic:** {row['arabic']}")
+        st.write(f"**Example:** {row['example']}")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    with c1:
-        if st.button("Show Definition"):
-            ss.show_def = True
+    c1, c2, c3 = st.columns(3)
+    if c1.button("⬅️ Previous"):
+        st.session_state.index = (st.session_state.index - 1) % TOTAL_WORDS
+        st.rerun()
 
-    with c2:
-        # Mark as learned (button adds once)
-        if st.button("Mark as Learned ✅"):
-            learned = set(progress.get("learned", []))
-            if row["word"] not in learned:
-                progress["learned"].append(row["word"])
-                # update recent pool (max 10)
-                pool = [w for w in progress.get("recent_pool", []) if w != row["word"]]
-                pool.append(row["word"])
-                if len(pool) > 10:
-                    pool = pool[-10:]
-                progress["recent_pool"] = pool
-                save_progress(progress)
-                st.success("Added to learned.")
-            else:
-                st.info("Already marked as learned.")
+    st.markdown('<div class="learn-btn">', unsafe_allow_html=True)
+    if c2.button("Mark as Learned ✅", key="learn_btn", help="Adds to streak, mastered list, and quiz pool"):
+        mark_active_today()
+        add_mastered(st.session_state.index)
+        add_recent(st.session_state.index)
+        st.toast("Added to learned + streak updated")
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    with c3:
-        nxt, prev = st.columns(2)
-        if nxt.button("Next ➜"):
-            ss.index = (ss.index + 1) % TOTAL_WORDS
-            ss.show_def = False
-            st.rerun()
-        if prev.button("◀ Previous"):
-            ss.index = (ss.index - 1) % TOTAL_WORDS
-            ss.show_def = False
-            st.rerun()
+    if c3.button("Next ➡️"):
+        st.session_state.index = (st.session_state.index + 1) % TOTAL_WORDS
+        st.rerun()
 
-    if ss.show_def:
-        st.markdown("### Definition")
-        st.markdown(
-            f"""
-            <div class="card">
-              <p><strong>Meaning:</strong> {row['definition']}</p>
-              <p><strong>French:</strong> {row['french']}</p>
-              <p><strong>Arabic:</strong> {row['arabic']}</p>
-              <p><strong>Example:</strong> {row['example']}</p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    st.write("")
-    if st.button("Reset learned (clear)"):
-        progress["learned"] = []
-        progress["recent_pool"] = []
-        save_progress(progress)
-        st.success("Progress cleared.")
-
-# --- QUIZ (recent 10 learned) ---
-elif ss.mode == "Quiz":
-    pool = progress.get("recent_pool", [])
-    st.header("Quiz")
-    if len(pool) < 3:
-        st.info("Learn at least 3 words (up to 10) to enable the quiz from your recent words.")
-    else:
-        # Build question if needed
-        if ss.quiz_q is None:
-            correct_word = random.choice(pool)
-            correct_row = data[data["word"] == correct_word].iloc[0]
-            # wrong options
-            others = data[data["word"] != correct_word].sample(3, random_state=random.randint(0, 99999))
-            choices_df = pd.concat([others, correct_row.to_frame().T]).sample(frac=1, random_state=random.randint(0,99999))
-            ss.quiz_q = correct_row
-            ss.quiz_choices = choices_df["definition"].tolist()
-
-        q = ss.quiz_q
-        st.subheader(f"What does **{q['word']}** mean?")
-        answer = st.radio("Choose one:", ss.quiz_choices, index=None, label_visibility="collapsed")
-
-        colL, colR = st.columns([1,1])
-        if colL.button("Submit"):
-            if answer is None:
-                st.warning("Pick an option.")
-            else:
-                ss.quiz_total += 1
-                if answer == q["definition"]:
-                    ss.quiz_score += 1
-                    st.success("Correct! ✅")
-                else:
-                    st.error(f"Not quite. Correct answer: {q['definition']}")
-                # next question
-                ss.quiz_q = None
-                ss.quiz_choices = []
-
-        if colR.button("Reset quiz"):
-            ss.quiz_q = None
-            ss.quiz_choices = []
-            ss.quiz_score = 0
-            ss.quiz_total = 0
-
-        st.caption(f"Score: {ss.quiz_score} / {ss.quiz_total}")
-
-# Fallback safety
+# ---- Quiz with subtle gradient + rust sidebar ----
 else:
-    ss.mode = "Home"
-    st.rerun()
+    apply_base_css(sidebar_color=RUST)  # default gradient
+    render_sidebar()
+
+    pool = st.session_state.learned_recent
+    st.header("Quiz")
+    if not pool:
+        st.info("Your recent learned pool is empty. Go to **Words** and mark some items ✅.")
+    else:
+        if st.session_state.quiz["q"] is None:
+            # Make quiz item from pool
+            i = random.choice(pool)
+            row = data.iloc[i]
+            others = [j for j in pool if j != i]
+            pick = random.sample(others, k=min(3, len(others))) if others else []
+            choices = [row["word"]] + [data.iloc[j]["word"] for j in pick]
+            random.shuffle(choices)
+            st.session_state.quiz["q"] = {
+                "prompt": f'Which word matches this definition?\n\n**{row["definition"]}**',
+                "choices": choices,
+                "correct": choices.index(row["word"]),
+                "row": row,
+            }
+
+        q = st.session_state.quiz["q"]
+        st.subheader(f"From your last {len(pool)} learned words • Q{st.session_state.quiz['num']+1}")
+        st.markdown(q["prompt"])
+        choice = st.radio("Choose one:", q["choices"], index=None, key=f"q{st.session_state.quiz['num']}")
+
+        c1, c2 = st.columns(2)
+        if c1.button("Check"):
+            if choice is None:
+                st.warning("Pick an answer first 🙂")
+            else:
+                if q["choices"].index(choice) == q["correct"]:
+                    st.success("✅ Correct!")
+                    st.session_state.quiz["score"] += 1
+                else:
+                    st.error(f"❌ Correct answer: **{q['choices'][q['correct']]}**")
+                with st.expander("Explanation"):
+                    r = q["row"]
+                    st.write(f"**Definition:** {r['definition']}")
+                    st.write(f"**French:** {r['french']}")
+                    st.write(f"**Arabic:** {r['arabic']}")
+                    st.write(f"**Example:** {r['example']}")
+                mark_active_today()
+
+        if c2.button("Next Question ➡️"):
+            st.session_state.quiz["num"] += 1
+            st.session_state.quiz["q"] = None
+            st.rerun()
+
+        st.info(f"Score: **{st.session_state.quiz['score']}** / {st.session_state.quiz['num']}")
