@@ -195,52 +195,42 @@ def page_words():
         if isinstance(ex, str) and ex.strip():
             st.write(f"**Example:** {ex}")
 
+# -------------------------
+# QUIZ PAGE
+# -------------------------
 def page_quiz():
+    import random
     st.header("Quiz")
-    pool = list(dict.fromkeys(st.session_state.recent_pool))
-    if not pool:
-        st.info("Your quiz pool is empty. Learn some words first.")
+    st.write("You'll be quizzed on recently learned words.")
+
+    # Example recent words (replace with your list or session data)
+    recent_words = ["benevolent", "candid", "diligent", "elated", 
+                    "ambivalent", "anomaly", "antithesis", "apathetic"]
+
+    if not recent_words:
+        st.info("No recent words to quiz. Learn some words first!")
         return
 
-    definitions = {
-        "benevolent": "kind and generous",
-        "candid": "honest and straightforward",
-        "diligent": "showing care and effort",
-        "elated": "very happy",
-        "alacrity": "cheerful readiness",
-        "ambivalent": "having mixed feelings",
-        "anomaly": "something unusual",
-        "antithesis": "direct opposite",
-        "apathetic": "showing no interest",
-        "arduous": "very difficult"
-    }
+    # Pick a random word
+    word = random.choice(recent_words)
 
-    if st.session_state.quiz_index >= len(pool):
-        st.success("🎉 Quiz finished!")
-        if st.button("Restart Quiz"):
-            st.session_state.quiz_index = 0
-            st.experimental_rerun()
-        return
-
-    word = pool[st.session_state.quiz_index]
-    correct_def = definitions.get(word, "Definition not available")
-
-    wrong_defs = random.sample([v for k,v in definitions.items() if k != word], 3)
-    options = wrong_defs + [correct_def]
-    random.shuffle(options)
+    # Example fake choices (you should load definitions from your CSV)
+    choices = [
+        f"Definition of {word} (correct)",
+        "Some wrong definition",
+        "Another wrong definition",
+        "Yet another wrong definition"
+    ]
+    random.shuffle(choices)
 
     st.subheader(f"What does **{word}** mean?")
-    choice = st.radio("Choose one:", options)
+    answer = st.radio("Choose one:", choices)
 
-    if st.button("Check Answer"):
-        if choice == correct_def:
+    if st.button("Submit"):
+        if answer.startswith("Definition of"):
             st.success("✅ Correct!")
         else:
-            st.error(f"❌ Wrong. The correct answer is: {correct_def}")
-
-    if st.button("Next Question"):
-        st.session_state.quiz_index += 1
-        st.experimental_rerun()
+            st.error("❌ Wrong, try again.")
 
 # --------------------------------
 # Router
