@@ -238,16 +238,16 @@ else:
     sidebar_nav()
     # honor sidebar navigation
     dest = st.session_state.get("nav_choice", "Home")
- if dest == "Home":
+if dest == "Home":
         st.session_state.mode = "home"
         page_home()
- elif dest == "Words":
+elif dest == "Words":
         st.session_state.mode = "Words"
         page_words()
- else:
+else:
         st.session_state.mode = "Quiz"
         page_quiz()
- elif mode == "Quiz":
+elif mode == "Quiz":
     st.header("Quiz")
     st.write("You'll be quizzed on recently learned words (last 10).")
 
