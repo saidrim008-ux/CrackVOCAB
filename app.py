@@ -7,21 +7,77 @@ from pathlib import Path
 # ===================== App setup =====================
 st.set_page_config(page_title="crackVOCAB", page_icon="📘", layout="wide")
 
-# ===================== Theme Colors (from your inspo) =====================
-RUST = "#8a3f21"       # left image (sidebar)
-BEIGE = "#e3b896"      # right image (home page)
-BLUE = "#2563eb"       # buttons
-BLUE_HOVER = "#1e4fbf"
+# Global CSS (all text black, study-vibe background, rounded buttons/cards)
+st.markdown(
+    """
+    <style>
+      /* Background */
+      .stApp {
+        background: linear-gradient(180deg, #f6fbff 0%, #eef3ff 100%);
+        color: #111 !important;
+      }
+      /* Force dark text everywhere */
+      html, body, [class*="st-"], .stMarkdown, .stMarkdown p, .stMarkdown span {
+        color: #111 !important;
+      }
+      /* Headings */
+      h1, h2, h3, .stMarkdown h1, .stMarkdown h2 {
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+        color: #111 !important;
+      }
+      /* Buttons */
+      div.stButton > button {
+        background: #2563eb;  /* blue */
+        color: #fff !important;
+        border: 0;
+        padding: 10px 16px;
+        border-radius: 12px;
+        font-weight: 600;
+      }
+      div.stButton > button:hover { background: #1e4fbf; }
+      /* Cards */
+      .card {
+        background: #ffffffcc;
+        border: 1px solid #e6ecff;
+        box-shadow: 0 8px 20px rgba(37,99,235,0.08);
+        border-radius: 16px;
+        padding: 1.1rem 1.2rem;
+      }
+      /* Sidebar */
+      section[data-testid="stSidebar"] {
+        background: #f7f9ff;
+        border-right: 1px solid #e9efff;
+        color: #111 !important;
+      }
+      /* Streak bar (smooth line) */
+      .streak-wrap {
+        background: #e5edff;
+        border-radius: 999px;
+        height: 10px;
+        width: 100%;
+        overflow: hidden;
+      }
+      .streak-fill {
+        background: #2563eb;
+        height: 100%;
+        transition: width 300ms ease;
+      }
+      .muted { color: #5b6b7a !important; }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# ===================== Config =====================
+LEARNED_LIMIT = 10                 # recent pool for Quiz
+PROGRESS_FILE = Path("progress.json")
+STREAK_WINDOW = 30                 # visual window for the streak bar
 
 # ===================== Data =====================
-LEARNED_LIMIT = 10
-PROGRESS_FILE = Path("progress.json")
-STREAK_WINDOW = 30
-
 data = (
     pd.read_csv("words.csv")
       .dropna()
-      .drop_duplicates(subset=["word"])
+      .drop_duplicates(subset=["word"])   # avoid exact duplicate words
       .reset_index(drop=True)
 )
 TOTAL_WORDS = len(data)
@@ -52,7 +108,6 @@ def add_mastered(idx: int):
         save_progress(progress)
 
 # ===================== Streak helpers =====================
-from datetime import timedelta
 def consecutive_streak(dates_list):
     s = set(dates_list)
     streak, d = 0, date.today()
@@ -73,123 +128,15 @@ def streak_bar_html(streak: int, window: int = STREAK_WINDOW):
 
 # ===================== Session =====================
 if "mode" not in st.session_state:
-    st.session_state.mode = "Welcome"
+    st.session_state.mode = "Welcome"   # ask for name first
 if "index" not in st.session_state:
     st.session_state.index = 0
 if "learned_recent" not in st.session_state:
-    st.session_state.learned_recent = []
+    st.session_state.learned_recent = []  # indices for recent pool (quiz)
 if "quiz" not in st.session_state:
     st.session_state.quiz = {"q": None, "score": 0, "num": 0}
 
-# ===================== Page-specific CSS =====================
-def apply_base_css(sidebar_color: str, app_bg: str = None, use_image=False):
-    """
-    sidebar_color: hex (e.g., RUST)
-    app_bg: hex or None
-    use_image: if True, uses bg_welcome.jpg as background instead of color
-    """
-    bg_css = (
-        f"background: url('bg_welcome.jpg') center center/cover no-repeat fixed;"
-        if use_image else
-        (f"background: {app_bg};" if app_bg else
-         "background: linear-gradient(180deg, #f6fbff 0%, #eef3ff 100%);")
-    )
-
-    st.markdown(
-        f"""
-        <style>
-          /* App background */
-          .stApp {{
-            {bg_css}
-            color: #111 !important;
-          }}
-
-          /* Sidebar colors (rust) */
-          section[data-testid="stSidebar"] {{
-            background: {sidebar_color};
-            color: #fff !important;
-            border-right: 1px solid rgba(0,0,0,0.08);
-          }}
-          section[data-testid="stSidebar"] * {{
-            color: #fff !important;
-          }}
-
-          /* Headings + text (black) */
-          html, body, [class*="st-"], .stMarkdown, .stMarkdown p, .stMarkdown span {{
-            color: #111 !important;
-          }}
-          h1, h2, h3, .stMarkdown h1, .stMarkdown h2 {{
-            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-            color: #111 !important;
-          }}
-
-          /* Inputs: white box, dark text */
-          .stTextInput > div > div input {{
-            background: #fff !important;
-            color: #111 !important;
-            border: 1px solid #d1d5db !important;
-            border-radius: 12px !important;
-          }}
-
-          /* Default buttons (Show Definition, Previous, Next, etc.) */
-          div.stButton > button {{
-            background: {BLUE};
-            color: #fff !important;
-            border: 0;
-            padding: 10px 16px;
-            border-radius: 12px;
-            font-weight: 600;
-          }}
-          div.stButton > button:hover {{ background: {BLUE_HOVER}; }}
-
-          /* Card look */
-          .card {{
-            background: #ffffffcc;
-            border: 1px solid rgba(0,0,0,0.06);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.06);
-            border-radius: 16px;
-            padding: 1.1rem 1.2rem;
-          }}
-
-          /* Streak bar */
-          .streak-wrap {{
-            background: #e5edff;
-            border-radius: 999px;
-            height: 10px;
-            width: 100%;
-            overflow: hidden;
-          }}
-          .streak-fill {{
-            background: {BLUE};
-            height: 100%;
-            transition: width 300ms ease;
-          }}
-          .muted {{ color: #5b6b7a !important; }}
-
-          /* Special: Mark as Learned (same blue, pill) */
-          .learn-btn button {{
-            background: {BLUE} !important;
-            color: #fff !important;
-            border-radius: 22px !important;
-            padding: 10px 18px !important;
-          }}
-          .learn-btn button:hover {{ background: {BLUE_HOVER} !important; }}
-
-          /* Special: Home button (green) */
-          .home-btn button {{
-            background: #22c55e !important;
-            color: #fff !important;
-            border-radius: 10px !important;
-            padding: 10px 16px !important;
-            font-weight: 700 !important;
-          }}
-          .home-btn button:hover {{ background: #16a34a !important; }}
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-# ===================== Helpers =====================
+# ===================== Small helpers =====================
 def add_recent(idx):
     L = st.session_state.learned_recent
     if idx in L: L.remove(idx)
@@ -216,12 +163,14 @@ def make_quiz_item(pool):
     }
 
 # ===================== Sidebar (hide on Welcome) =====================
-def render_sidebar():
+if st.session_state.mode != "Welcome":
+    # Navigation
     st.session_state.mode = st.sidebar.radio(
         "Go to", ["Home", "Words", "Quiz"],
         index=["Home","Words","Quiz"].index(st.session_state.mode) if st.session_state.mode in ["Home","Words","Quiz"] else 0
     )
 
+    # Word list (not on Home)
     if st.session_state.mode != "Home":
         st.sidebar.markdown("### 📚 Word list")
         st.sidebar.write(f"Total words: **{TOTAL_WORDS}**")
@@ -239,6 +188,7 @@ def render_sidebar():
         else:
             st.sidebar.info("No words match your search.")
 
+    # Streak + progress
     with st.sidebar:
         st.markdown("---")
         streak = consecutive_streak(progress["dates"])
@@ -251,29 +201,21 @@ def render_sidebar():
         st.progress((mastered_count / TOTAL_WORDS) if TOTAL_WORDS else 0.0)
 
         st.write(f"Quiz pool (recent): **{len(st.session_state.learned_recent)} / {LEARNED_LIMIT}**")
-        st.markdown('<div class="home-btn">', unsafe_allow_html=True)
-        if st.button("🏠 Home", key="home_sidebar"):
-            st.session_state.mode = "Home"; st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+        if st.button("Clear recent pool"):
+            st.session_state.learned_recent = []
+            st.success("Recent pool cleared.")
 
-# ===================== PAGES =====================
+# ===================== Pages =====================
 
-# ---- Welcome (nickname) with IMAGE background + rust sidebar ----
+# ---- Welcome (enter name) ----
 if st.session_state.mode == "Welcome":
-    apply_base_css(sidebar_color=RUST, use_image=True)  # bg_welcome.jpg
-
     st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.title("Let’s master vocabulary together 💪")
-    st.write("Enter your **name or nickname** to personalize your experience.")
-
+    st.header("Welcome to your favorite spot ✨")
+    st.write("Enter your **full name** to personalize your experience.")
     default_name = progress.get("name") or ""
-    nickname = st.text_input("Enter your name or nickname", value=default_name, placeholder="e.g., Youssef / Laila / Ayman")
-
-    if progress.get("name"):
-        st.caption(f"Saved name: **{progress['name']}**")
-
+    name = st.text_input("Full name", value=default_name, placeholder="e.g., Youssef Said")
     if st.button("Go →"):
-        clean = nickname.strip()
+        clean = name.strip()
         if clean:
             progress["name"] = clean
             if not progress.get("first_seen"):
@@ -282,18 +224,14 @@ if st.session_state.mode == "Welcome":
             st.session_state.mode = "Home"
             st.rerun()
         else:
-            st.warning("Please enter your name or nickname to continue.")
+            st.warning("Please enter your full name to continue.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---- Home (intro) with BEIGE background + rust sidebar ----
+# ---- Home (intro) ----
 elif st.session_state.mode == "Home":
-    apply_base_css(sidebar_color=RUST, app_bg=BEIGE, use_image=False)
-
-    render_sidebar()  # show sidebar on Home
-
     user = progress.get("name") or "there"
     st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.header(f"Hi there, **{user}** — welcome to crackVOCAB 👋")
+    st.header(f"Hi {user}, welcome to crackVOCAB 👋")
     st.write(
         """
 **crackVOCAB** helps you master **advanced English vocabulary** with bilingual
@@ -309,11 +247,8 @@ elif st.session_state.mode == "Home":
     st.button("Start learning →", on_click=lambda: st.session_state.update({"mode": "Words"}))
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---- Words (learn) with subtle gradient + rust sidebar ----
+# ---- Words (Learn) ----
 elif st.session_state.mode == "Words":
-    apply_base_css(sidebar_color=RUST)  # default gradient
-    render_sidebar()
-
     row = data.iloc[st.session_state.index]
     st.header("Words")
     st.subheader(f"{row['word']} ({row['part_of_speech']})")
@@ -328,46 +263,24 @@ elif st.session_state.mode == "Words":
 
     c1, c2, c3 = st.columns(3)
     if c1.button("⬅️ Previous"):
-        st.session_state.index = (st.session_state.index - 1) % TOTAL_WORDS
-        st.rerun()
-
-    st.markdown('<div class="learn-btn">', unsafe_allow_html=True)
-    if c2.button("Mark as Learned ✅", key="learn_btn", help="Adds to streak, mastered list, and quiz pool"):
+        next_index(-1); st.rerun()
+    if c2.button("Mark as Learned ✅", help="Adds to streak, mastered list, and quiz pool"):
         mark_active_today()
         add_mastered(st.session_state.index)
         add_recent(st.session_state.index)
-        st.toast("Added to learned + streak updated")
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
+        st.toast("Added to learned + streak updated"); st.rerun()
     if c3.button("Next ➡️"):
-        st.session_state.index = (st.session_state.index + 1) % TOTAL_WORDS
-        st.rerun()
+        next_index(1); st.rerun()
 
-# ---- Quiz with subtle gradient + rust sidebar ----
+# ---- Quiz ----
 else:
-    apply_base_css(sidebar_color=RUST)  # default gradient
-    render_sidebar()
-
     pool = st.session_state.learned_recent
     st.header("Quiz")
     if not pool:
         st.info("Your recent learned pool is empty. Go to **Words** and mark some items ✅.")
     else:
         if st.session_state.quiz["q"] is None:
-            # Make quiz item from pool
-            i = random.choice(pool)
-            row = data.iloc[i]
-            others = [j for j in pool if j != i]
-            pick = random.sample(others, k=min(3, len(others))) if others else []
-            choices = [row["word"]] + [data.iloc[j]["word"] for j in pick]
-            random.shuffle(choices)
-            st.session_state.quiz["q"] = {
-                "prompt": f'Which word matches this definition?\n\n**{row["definition"]}**',
-                "choices": choices,
-                "correct": choices.index(row["word"]),
-                "row": row,
-            }
+            st.session_state.quiz["q"] = make_quiz_item(pool)
 
         q = st.session_state.quiz["q"]
         st.subheader(f"From your last {len(pool)} learned words • Q{st.session_state.quiz['num']+1}")
@@ -394,7 +307,7 @@ else:
 
         if c2.button("Next Question ➡️"):
             st.session_state.quiz["num"] += 1
-            st.session_state.quiz["q"] = None
+            st.session_state.quiz["q"] = make_quiz_item(pool)
             st.rerun()
 
         st.info(f"Score: **{st.session_state.quiz['score']}** / {st.session_state.quiz['num']}")
