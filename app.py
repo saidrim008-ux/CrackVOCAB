@@ -3,7 +3,7 @@ import pandas as pd
 import random, json
 from datetime import date
 from pathlib import Path
-
+import base64
 # ---------- BASIC SETUP ----------
 st.set_page_config(page_title="crackVOCAB", page_icon="📘", layout="wide")
 
@@ -173,24 +173,59 @@ with st.sidebar:
     st.caption(f"Words mastered: **{len(progress.get('learned', []))} / {TOTAL_WORDS}**")
 
 # ---------- PAGES ----------
-# HOME (welcome with map bg)
-if ss.mode == "Home":
-    st.markdown('<div class="welcome-bg"></div>', unsafe_allow_html=True)
+# ---------- INLINE BACKGROUND (base64) FOR WELCOME ----------
+import base64
+def welcome_bg_css(img_path="bg-welcome.jpg"):
+    try:
+        b = Path(img_path).read_bytes()
+        b64 = base64.b64encode(b).decode()
+        return f"""
+        <style>
+        .welcome-bg {{
+          position: fixed; inset: 0; z-index: -1;
+          background-image: url("data:image/jpeg;base64,{b64}");
+          background-size: cover; background-position: center;
+          filter: brightness(0.9);
+        }}
+        .welcome-panel {{
+          background: rgba(255,255,255,0.85);
+          border: 1px solid rgba(0,0,0,0.06);
+          border-radius: 16px;
+          padding: 24px 28px;
+          max-width: 680px;
+        }}
+        </style>
+        """
+    except Exception:
+        # If image missing, just no background (keeps app working)
+        return ""
+
+# If no name saved yet, always start on Home (welcome)
+if not progress.get("name"):
+    ss.mode = "Home"
+
+# ---------- PAGES ----------
+mode = ss.mode
+
+if mode == "Home":
+    # inject background CSS with embedded image
+    st.markdown(welcome_bg_css(), unsafe_allow_html=True)
+
     st.title("Hi there, welcome to **crackVOCAB** 📘")
-    st.write("")  # small spacer
     st.markdown('<div class="welcome-panel">', unsafe_allow_html=True)
     st.subheader("Let’s master vocabulary together 💪")
     st.write("Enter your **name or nickname** to personalize your experience.")
+
     name = st.text_input("Enter your name or nickname", value=progress.get("name",""))
     if name != progress.get("name",""):
         progress["name"] = name
         save_progress(progress)
         st.caption(f"Saved name: {name}")
+
     st.button("Go →", on_click=lambda: ss.update({"mode":"Words"}))
     st.markdown("</div>", unsafe_allow_html=True)
 
-# WORDS (all white)
-elif ss.mode == "Words":
+elif mode == "Words":
     row = data.iloc[ss.index]
     st.header("Words")
     st.subheader(f"{row['word']} ({row['part_of_speech']})")
@@ -244,8 +279,7 @@ elif ss.mode == "Words":
         save_progress(progress)
         st.success("Progress cleared.")
 
-# QUIZ (uses last 10 learned)
-elif ss.mode == "Quiz":
+elif mode == "Quiz":
     pool = progress.get("recent_pool", [])
     if len(pool) < 3:
         st.info("Learn at least 3 words (up to 10) to enable the quiz.")
