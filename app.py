@@ -121,7 +121,7 @@ def load_words():
             df[c] = ""
     return df[cols]
 
-def load_progress():
+def update_streak():
     # -------------------------
 # STREAK UPDATE (safe)
 # -------------------------
