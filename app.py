@@ -4,25 +4,22 @@ import random, json
 from datetime import date, timedelta
 from pathlib import Path
 
-# ---------- Config ----------
-LEARNED_LIMIT = 10               # recent learned pool for quiz
+# ========= Config =========
+LEARNED_LIMIT = 10
+TARGET_WORDS = 100
 PROGRESS_FILE = Path("progress.json")
-TARGET_WORDS = 100               # goal before adding the next pack
 
-# ---------- Load data ----------
+# ========= Data =========
 data = pd.read_csv("words.csv").dropna().reset_index(drop=True)
 
-st.title("📘 crackVOCAB")
-st.caption("Master advanced vocabulary with English–French–Arabic flashcards!")
-
-# ---------- helpers: persistence ----------
+# ========= Persistence (streak + lifetime mastered) =========
 def load_progress():
     if PROGRESS_FILE.exists():
         try:
             return json.loads(PROGRESS_FILE.read_text(encoding="utf-8"))
         except Exception:
             pass
-    return {"dates": [], "mastered_idxs": []}  # dates = ["YYYY-MM-DD"]
+    return {"dates": [], "mastered_idxs": []}
 
 def save_progress(p):
     PROGRESS_FILE.write_text(json.dumps(p, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -36,93 +33,126 @@ def mark_active_today():
         save_progress(progress)
 
 def add_mastered(idx: int):
-    # lifetime mastered set (distinct words)
     if idx not in progress["mastered_idxs"]:
         progress["mastered_idxs"].append(idx)
         save_progress(progress)
 
-# ---------- Streak utilities ----------
 def consecutive_streak(dates_list):
-    """Return streak length ending today."""
-    if not dates_list: return 0
     s = set(dates_list)
-    streak = 0
-    d = date.today()
+    streak, d = 0, date.today()
     while str(d) in s:
         streak += 1
         d -= timedelta(days=1)
     return streak
 
 def week_flags(dates_list):
-    """Return last 7 days flags [(label, did_learn: bool)]."""
     s = set(dates_list)
-    out = []
-    for i in range(6, -1, -1):  # Mon..Sun visual left->right (last 7 days)
-        d = date.today() - timedelta(days=i)
-        out.append((d.strftime("%a"), str(d) in s))
-    return out
+    return [( (date.today()-timedelta(days=i)).strftime("%a"),
+              str(date.today()-timedelta(days=i)) in s ) for i in range(6,-1,-1)]
 
-# ---------- Session state ----------
+# ========= Session =========
+if "mode" not in st.session_state:
+    st.session_state.mode = "Home"  # default landing page
 if "index" not in st.session_state:
     st.session_state.index = 0
-if "learned_idxs_recent" not in st.session_state:
-    st.session_state.learned_idxs_recent = []  # recent pool for quiz only
+if "learned_recent" not in st.session_state:
+    st.session_state.learned_recent = []
 if "quiz" not in st.session_state:
     st.session_state.quiz = {"q": None, "score": 0, "num": 0}
 
-# ---------- sidebar: streak & progress ----------
-streak = consecutive_streak(progress["dates"])
-flags = week_flags(progress["dates"])
-mastered_count = len(progress["mastered_idxs"])
-
-with st.sidebar:
-    st.subheader("🔥 Streak")
-    st.write(f"Consecutive days: **{streak}**")
-    bar = min(streak, 7) / 7
-    st.progress(bar, text=f"{bar*100:.0f}% of this week")
-
-    cols = st.columns(7)
-    for (lbl, ok), c in zip(flags, cols):
-        c.markdown(f"**{lbl}**\n\n{'✅' if ok else '—'}")
-
-    st.subheader("📈 Lifetime Progress")
-    st.write(f"Words mastered: **{mastered_count} / {TARGET_WORDS}**")
-    st.progress(min(mastered_count, TARGET_WORDS) / TARGET_WORDS)
-
-    st.write(f"Quiz pool (recent): **{len(st.session_state.learned_idxs_recent)} / {LEARNED_LIMIT}**")
-    if st.button("Clear recent quiz pool"):
-        st.session_state.learned_idxs_recent = []
-        st.success("Recent pool cleared.")
-
-# ---------- internal helpers ----------
+# ========= Small helpers =========
 def add_recent(idx):
-    if idx in st.session_state.learned_idxs_recent:
-        st.session_state.learned_idxs_recent.remove(idx)
-    st.session_state.learned_idxs_recent.insert(0, idx)
-    st.session_state.learned_idxs_recent = st.session_state.learned_idxs_recent[:LEARNED_LIMIT]
+    L = st.session_state.learned_recent
+    if idx in L: L.remove(idx)
+    L.insert(0, idx)
+    st.session_state.learned_recent = L[:LEARNED_LIMIT]
 
-def next_index(delta: int):
+def next_index(delta):
     st.session_state.index = (st.session_state.index + delta) % len(data)
 
 def make_quiz_item(pool):
     i = random.choice(pool)
     row = data.iloc[i]
-    others = pool.copy()
-    others.remove(i)
+    others = pool.copy(); others.remove(i)
     pick = random.sample(others, k=min(3, len(others))) if others else []
     choices = [row["word"]] + [data.iloc[j]["word"] for j in pick]
     random.shuffle(choices)
-    correct = choices.index(row["word"])
-    prompt = f'Which word matches this definition?\n\n**{row["definition"]}**'
-    return {"prompt": prompt, "choices": choices, "correct": correct, "row": row}
+    return {
+        "prompt": f'Which word matches this definition?\n\n**{row["definition"]}**',
+        "choices": choices,
+        "correct": choices.index(row["word"]),
+        "row": row,
+    }
 
-# ---------- UI mode ----------
-mode = st.radio("Mode", ["Learn", "Quiz"], horizontal=True)
+# ========= TOP: Title =========
+st.title("📘 crackVOCAB")
 
-# ====================== LEARN ======================
-if mode == "Learn":
+# ========= LEFT SIDEBAR NAV + STATS =========
+st.session_state.mode = st.sidebar.radio("Go to", ["Home", "Words", "Quiz"], index=["Home","Words","Quiz"].index(st.session_state.mode))
+
+# Word list (only show when not on Home)
+if st.session_state.mode != "Home":
+    st.sidebar.markdown("### 📚 Word list")
+    # simple filter
+    q = st.sidebar.text_input("Search")
+    labels = [f"{w} ({p})" for w,p in zip(data["word"], data["part_of_speech"])]
+    if q:
+        filtered = [(i,l) for i,l in enumerate(labels) if q.lower() in l.lower()]
+    else:
+        filtered = list(enumerate(labels))
+    # pick current index from list
+    if filtered:
+        idx_options = [i for i,_ in filtered]
+        label_options = [l for _,l in filtered]
+        sel = st.sidebar.selectbox("Select a word", label_options, index=0)
+        st.session_state.index = idx_options[label_options.index(sel)]
+    else:
+        st.sidebar.info("No words match your search.")
+
+# Stats / streak
+with st.sidebar:
+    st.markdown("---")
+    streak = consecutive_streak(progress["dates"])
+    st.subheader("🔥 Streak")
+    st.write(f"Consecutive days: **{streak}**")
+    flags = week_flags(progress["dates"])
+    cols = st.columns(7)
+    for (lbl, ok), c in zip(flags, cols):
+        c.markdown(f"**{lbl}**\n\n{'✅' if ok else '—'}")
+    st.subheader("📈 Progress")
+    st.write(f"Words mastered: **{len(progress['mastered_idxs'])} / {TARGET_WORDS}**")
+    st.progress(min(len(progress["mastered_idxs"]), TARGET_WORDS)/TARGET_WORDS)
+    st.write(f"Quiz pool (recent): **{len(st.session_state.learned_recent)} / {LEARNED_LIMIT}**")
+    if st.button("Clear recent pool"):
+        st.session_state.learned_recent = []
+        st.success("Recent pool cleared.")
+
+# ========= PAGES =========
+if st.session_state.mode == "Home":
+    # Intro / landing page
+    st.header("Welcome to crackVOCAB 👋")
+    st.write(
+        """
+**crackVOCAB** helps you master **advanced English vocabulary** with bilingual
+(English–French–Arabic) explanations.
+
+**How it works**
+1. Go to **Words** → pick a word from the left list.
+2. Click **Show Definition**, then **Mark as Learned** when you’re ready.
+3. Your **streak** and **progress** update automatically.
+4. Use **Quiz** to practice **only** your recently learned words.
+        """
+    )
+    st.markdown("**Ready?** Click the button below to start learning.")
+    if st.button("Start learning →"):
+        st.session_state.mode = "Words"
+        st.rerun()
+
+elif st.session_state.mode == "Words":
+    # Learn page
     row = data.iloc[st.session_state.index]
-    st.subheader(f"Word: {row['word']} ({row['part_of_speech']})")
+    st.header("Words")
+    st.subheader(f"{row['word']} ({row['part_of_speech']})")
 
     if st.button("Show Definition"):
         st.write(f"**Definition:** {row['definition']}")
@@ -130,35 +160,34 @@ if mode == "Learn":
         st.write(f"**Arabic:** {row['arabic']}")
         st.write(f"**Example:** {row['example']}")
 
-    cols = st.columns(3)
-    if cols[0].button("⬅️ Previous"):
+    c1,c2,c3 = st.columns(3)
+    if c1.button("⬅️ Previous"):
         next_index(-1); st.rerun()
-    if cols[1].button("Mark as Learned ✅"):
-        # record activity & mastery
+    if c2.button("Mark as Learned ✅"):
         mark_active_today()
         add_mastered(st.session_state.index)
-        # keep a small recent pool for quizzing
         add_recent(st.session_state.index)
-        st.toast("Added to learned pool + streak updated"); st.rerun()
-    if cols[2].button("Next ➡️"):
+        st.toast("Added to learned + streak updated"); st.rerun()
+    if c3.button("Next ➡️"):
         next_index(1); st.rerun()
 
-# ====================== QUIZ ======================
 else:
-    pool = st.session_state.learned_idxs_recent
+    # Quiz page
+    pool = st.session_state.learned_recent
+    st.header("Quiz")
     if not pool:
-        st.info("Your recent learned pool is empty. Go to **Learn** and mark some words ✅.")
+        st.info("Your recent learned pool is empty. Go to **Words** and mark some items ✅.")
     else:
         if st.session_state.quiz["q"] is None:
             st.session_state.quiz["q"] = make_quiz_item(pool)
 
         q = st.session_state.quiz["q"]
-        st.subheader(f"Quiz (from your last {len(pool)} learned words) • Q{st.session_state.quiz['num'] + 1}")
+        st.subheader(f"From your last {len(pool)} learned words • Q{st.session_state.quiz['num']+1}")
         st.markdown(q["prompt"])
         choice = st.radio("Choose one:", q["choices"], index=None, key=f"q{st.session_state.quiz['num']}")
 
-        cols = st.columns(2)
-        if cols[0].button("Check"):
+        c1,c2 = st.columns(2)
+        if c1.button("Check"):
             if choice is None:
                 st.warning("Pick an answer first 🙂")
             else:
@@ -173,10 +202,9 @@ else:
                     st.write(f"**French:** {r['french']}")
                     st.write(f"**Arabic:** {r['arabic']}")
                     st.write(f"**Example:** {r['example']}")
-                # count a quiz interaction as activity for streak too
                 mark_active_today()
 
-        if cols[1].button("Next Question ➡️"):
+        if c2.button("Next Question ➡️"):
             st.session_state.quiz["num"] += 1
             st.session_state.quiz["q"] = make_quiz_item(pool)
             st.rerun()
