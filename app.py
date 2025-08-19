@@ -39,41 +39,6 @@ div.stButton > button:hover {
 }
 </style>
 """, unsafe_allow_html=True)
-
-# ---------------------------
-# Custom CSS styling
-# ---------------------------
-st.markdown(
-    """
-    <style>
-    /* Make text inputs white with black text */
-    .stTextInput > div > div > input {
-        background-color: white !important;
-        color: black !important;
-    }
-
-    /* Make selectbox white */
-    .stSelectbox > div > div {
-        background-color: white !important;
-        color: black !important;
-    }
-
-    /* Make "Mark as Learned" button skyblue */
-    div.stButton > button[kind="secondary"] {
-        background-color: #87CEEB !important; /* skyblue */
-        color: skyblue !important;
-    }
-
-    /* General buttons (Show Definition, Previous, Next) also skyblue */
-    div.stButton > button {
-        background-color: #87CEEB !important;
-        color: black !important;
-        border-radius: 8px;
-        font-weight: bold;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
 )
 
 # ===================== App setup =====================
