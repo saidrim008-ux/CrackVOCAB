@@ -236,3 +236,28 @@ else:
     else:
         st.session_state.mode = "Quiz"
         page_quiz()
+# --- Author credit (show on Home only) ---
+st.markdown(
+    """
+    <style>
+      .home-author-badge{
+        position:absolute; 
+        top:10px; 
+        right:20px; 
+        background:#f1f3f5;      /* light grey chip */
+        color:#5c4033;            /* warm brown text */
+        padding:6px 10px; 
+        border-radius:10px; 
+        font-size:13px; 
+        font-weight:600;
+        box-shadow:0 1px 2px rgba(0,0,0,.06);
+      }
+      /* On small screens, don’t overlap; place it below the header */
+      @media (max-width: 768px){
+        .home-author-badge{ position:static; display:inline-block; margin-left:auto; }
+      }
+    </style>
+    <div class="home-author-badge">Built by Rim Said</div>
+    """,
+    unsafe_allow_html=True
+)
