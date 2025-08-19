@@ -162,21 +162,28 @@ if "quiz_total" not in st.session_state:
     st.session_state.quiz_total = 0
 
 # -------------------------
-# STREAK UPDATE (once/day)
+# STREAK UPDATE (safe)
 # -------------------------
 today = date.today()
+
+# if missing keys, initialize safely
+if "last_open" not in progress:
+    progress["last_open"] = str(today)
+if "streak_days" not in progress:
+    progress["streak_days"] = 0
+
 last_open = date.fromisoformat(progress["last_open"])
+
 if today > last_open:
-    # if opened on a new calendar day, extend streak if consecutive
     if (today - last_open).days == 1:
         progress["streak_days"] += 1
     else:
-        # not consecutive → reset to 1 (new streak)
         progress["streak_days"] = 1
     progress["last_open"] = str(today)
     save_progress(progress)
 elif progress["streak_days"] == 0:
     progress["streak_days"] = 1
+    progress["last_open"] = str(today)
     save_progress(progress)
 
 # =========================
