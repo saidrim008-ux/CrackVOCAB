@@ -3,6 +3,43 @@ import pandas as pd
 import random, json
 from datetime import date, timedelta
 from pathlib import Path
+# ==== Global CSS ====
+st.markdown("""
+<style>
+/* Text input (Search) → white bg, black text */
+.stTextInput input {
+  background: #ffffff !important;
+  color: #111 !important;
+}
+
+/* Selectbox (Select a word) → white bg, black text */
+.stSelectbox [data-baseweb="select"] > div {
+  background: #ffffff !important;
+  color: #111 !important;
+  border-color: #ccd4da !important;
+}
+.stSelectbox [data-baseweb="select"] svg { fill: #111 !important; }
+
+/* Dropdown menu itself also white */
+.stSelectbox [data-baseweb="select"] div[role="listbox"] {
+  background: #ffffff !important;
+  color: #111 !important;
+}
+
+/* Make ALL buttons sky blue with black text */
+div.stButton > button {
+  background-color: #87CEEB !important;   /* sky blue */
+  color: #111 !important;
+  border-radius: 8px;
+  font-weight: 600;
+  border: 1px solid #5bb5da !important;
+}
+div.stButton > button:hover {
+  filter: brightness(0.95);
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ---------------------------
 # Custom CSS styling
 # ---------------------------
@@ -24,7 +61,7 @@ st.markdown(
     /* Make "Mark as Learned" button skyblue */
     div.stButton > button[kind="secondary"] {
         background-color: #87CEEB !important; /* skyblue */
-        color: black !important;
+        color: skyblue !important;
     }
 
     /* General buttons (Show Definition, Previous, Next) also skyblue */
