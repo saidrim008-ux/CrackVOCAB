@@ -1,63 +1,57 @@
-# app.py — crackVOCAB (drop-in version)
+# app.py — crackVOCAB (final drop-in)
 
 import streamlit as st
 import pandas as pd
 import random, json
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
-# =========================
-# COLORS & PAGE CONFIG
-# =========================
-RUST = "#d99072"            # lighter rust for sidebar
-BEIGE = "#e3b896"           # beige background for Home + Words
-SKY_BLUE = "#38bdf8"        # button color (sky blue)
-SKY_BLUE_HOVER = "#0ea5e9"  # button hover
+# =============== CONFIG / COLORS ===============
+RUST = "#d99072"           # light rust (sidebar)
+BEIGE = "#e3b896"          # beige (Home + Words background)
+SKY  = "#38bdf8"           # sky blue buttons
+SKY_HOVER = "#0ea5e9"
 
 st.set_page_config(page_title="crackVOCAB", page_icon="📘", layout="wide")
 
-# =========================
-# GLOBAL CSS (applies once)
-# =========================
+# =============== GLOBAL CSS ====================
 st.markdown(
     f"""
     <style>
-      /* Sidebar */
+      /* Sidebar bg */
       [data-testid="stSidebar"] {{
-          background-color: {RUST} !important;
+        background-color: {RUST} !important;
       }}
 
-      /* Default text */
+      /* Default text dark */
       html, body, .stApp, [class*="st-"], .stMarkdown, .stMarkdown p, .stMarkdown span {{
         color: #111 !important;
       }}
 
-      /* Inputs (text, select, date) */
+      /* Inputs */
       input, textarea, select, div[data-baseweb="select"], .stDateInput input {{
-        background-color: #fff !important;
+        background: #fff !important;
         color: #111 !important;
-        border: 1px solid #ccc !important;
+        border: 1px solid #cfcfcf !important;
         border-radius: 10px !important;
       }}
 
-      /* All buttons (Start Learning, Previous, Next, Mark as Learned, Reset, Home) */
-      div.stButton > button, .stButton button {{
-        background: {SKY_BLUE} !important;
+      /* All buttons */
+      .stButton button {{
+        background: {SKY} !important;
         color: #fff !important;
         border: none !important;
         border-radius: 12px !important;
         padding: 10px 16px !important;
         font-weight: 600 !important;
       }}
-      div.stButton > button:hover, .stButton button:hover {{
-        background: {SKY_BLUE_HOVER} !important;
-      }}
+      .stButton button:hover {{ background: {SKY_HOVER} !important; }}
 
-      /* Checkbox / Mark as Learned */
-      div.stCheckbox > label, div.stCheckbox > label span {{ color: #111 !important; }}
-      div.stCheckbox input {{ accent-color: {SKY_BLUE} !important; }}
+      /* Checkbox label + tint */
+      .stCheckbox > label, .stCheckbox > label span {{ color:#111 !important; }}
+      .stCheckbox input {{ accent-color: {SKY} !important; }}
 
-      /* Small cards (optional) */
+      /* Card */
       .card {{
         background: #ffffffcc;
         border: 1px solid rgba(0,0,0,0.06);
@@ -67,49 +61,24 @@ st.markdown(
       }}
 
       /* Streak bar */
-      .streak-wrap {{
-        background: #e5edff;
-        border-radius: 999px;
-        height: 10px;
-        width: 100%;
-        overflow: hidden;
-      }}
-      .streak-fill {{ background: {SKY_BLUE}; height: 100%; transition: width 300ms ease; }}
-      .muted {{ color: #5b6b7a !important; }}
+      .streak-wrap {{ background:#e5edff; height:10px; border-radius:999px; overflow:hidden; }}
+      .streak-fill {{ background:{SKY}; height:100%; transition:width .3s ease; }}
+      .muted {{ color:#5b6b7a !important; }}
     </style>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
-# Helpers to set page/side colors dynamically if needed later
-def set_sidebar_color(color: str):
-    st.markdown(
-        f"""
-        <style>
-        [data-testid="stSidebar"] {{ background-color: {color} !important; }}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
+# Helpers to set page background color (Home/Words should be beige)
 def set_page_bg_color(color: str):
     st.markdown(
-        f"""
-        <style>
-        .stApp {{ background-color: {color} !important; }}
-        </style>
-        """,
+        f"<style>.stApp{{background:{color} !important;}}</style>",
         unsafe_allow_html=True
     )
 
-# Ensure the lighter sidebar color is applied
-set_sidebar_color(RUST)
-
-# =========================
-# DATA / STATE / STORAGE
-# =========================
-DATA_FILE = "words.csv"            # one master list (≈190+ words)
-PROGRESS_FILE = Path("progress.json")
+# =============== DATA / STORAGE ===============
+DATA_FILE = "words.csv"               # your master list (190+ rows)
+PROGRESS_FILE = Path("progress.json") # local progress
 
 @st.cache_data
 def load_words():
@@ -121,55 +90,36 @@ def load_words():
             df[c] = ""
     return df[cols]
 
-def update_streak():
-    # -------------------------
-# STREAK UPDATE (safe)
-# -------------------------
-today = date.today()
-# keys are guaranteed by the defaults above, but keep it safe:
-progress.setdefault("last_open", str(today))
-progress.setdefault("streak_days", 0)
-
-last_open = date.fromisoformat(progress["last_open"])
-
-if today > last_open:
-    if (today - last_open).days == 1:
-        progress["streak_days"] += 1
-    else:
-        progress["streak_days"] = 1
-    progress["last_open"] = str(today)
-    save_progress(progress)
-elif progress["streak_days"] == 0:
-    progress["streak_days"] = 1
-    progress["last_open"] = str(today)
-    save_progress(progress)
-
+def load_progress():
     if PROGRESS_FILE.exists():
         try:
             return json.loads(PROGRESS_FILE.read_text(encoding="utf-8"))
         except Exception:
             pass
-    return {
-        "name": "",
-        "learned": [],               # list of words learned (strings)
-        "recent_pool": [],           # last 10 learned words for quiz
-        "streak_start": str(date.today()),
-        "last_open": str(date.today()),
-        "streak_days": 0
-    }
+    return {}
 
 def save_progress(p):
     PROGRESS_FILE.write_text(json.dumps(p, ensure_ascii=False, indent=2), encoding="utf-8")
 
 data = load_words()
 TOTAL_WORDS = len(data)
-st.caption(f"Words mastered: **{len(progress.get('learned', []))} / {TOTAL_WORDS}**")
 
+# Normalize progress keys so old files never break
 progress = load_progress()
+defaults = {
+    "name": "",
+    "learned": [],
+    "recent_pool": [],
+    "streak_start": str(date.today()),
+    "last_open": str(date.today()),
+    "streak_days": 0,
+}
+for k, v in defaults.items():
+    if k not in progress:
+        progress[k] = v
+save_progress(progress)
 
-# -------------------------
-# SESSION STATE DEFAULTS
-# -------------------------
+# =============== SESSION STATE ===============
 if "mode" not in st.session_state:
     st.session_state.mode = "Home"
 if "index" not in st.session_state:
@@ -185,17 +135,10 @@ if "quiz_score" not in st.session_state:
 if "quiz_total" not in st.session_state:
     st.session_state.quiz_total = 0
 
-# -------------------------
-# STREAK UPDATE (safe)
-# -------------------------
+# =============== STREAK (SAFE) ===============
 today = date.today()
-
-# if missing keys, initialize safely
-if "last_open" not in progress:
-    progress["last_open"] = str(today)
-if "streak_days" not in progress:
-    progress["streak_days"] = 0
-
+progress.setdefault("last_open", str(today))
+progress.setdefault("streak_days", 0)
 last_open = date.fromisoformat(progress["last_open"])
 
 if today > last_open:
@@ -210,23 +153,20 @@ elif progress["streak_days"] == 0:
     progress["last_open"] = str(today)
     save_progress(progress)
 
-# =========================
-# SIDEBAR NAV
-# =========================
+# =============== SIDEBAR ===============
 with st.sidebar:
     st.markdown("### Go to")
     st.radio(
         label="",
-        options=["Home","Words","Quiz"],
+        options=["Home", "Words", "Quiz"],
         index=["Home","Words","Quiz"].index(st.session_state.mode),
         key="mode",
-        label_visibility="collapsed"
+        label_visibility="collapsed",
     )
 
     st.markdown("### Word list")
     st.caption(f"Total words: **{TOTAL_WORDS}**")
 
-    # search & jump
     search = st.text_input("Search")
     if search:
         matches = data[data["word"].str.contains(search, case=False, na=False)]
@@ -240,27 +180,24 @@ with st.sidebar:
         pass
 
     st.markdown("### 🔥 Streak")
-    # simple progress line: width proportional to 30-day window
     days = max(1, min(progress["streak_days"], 30))
     pct = int(days / 30 * 100)
     st.markdown(
         f"""
-        <div class="streak-wrap">
-          <div class="streak-fill" style="width:{pct}%"></div>
-        </div>
-        <div class="muted" style="margin-top:6px;">{progress["streak_days"]}-day streak &nbsp;•&nbsp; view last 30 days</div>
+        <div class="streak-wrap"><div class="streak-fill" style="width:{pct}%"></div></div>
+        <div class="muted" style="margin-top:6px;">{progress["streak_days"]}-day streak • view last 30 days</div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
     st.markdown("### ☑️ Progress")
-    st.caption(f"Words mastered: **{len(progress['learned'])} / {TOTAL_WORDS}**")
+    st.caption(f"Words mastered: **{len(progress.get('learned', []))} / {TOTAL_WORDS}**")
 
-# =========================
-# HOME
-# =========================
+# =============== PAGES =======================
+
+# ---------- HOME ----------
 if st.session_state.mode == "Home":
-    set_page_bg_color(BEIGE)  # Home uses beige
+    set_page_bg_color(BEIGE)
 
     st.title("Hi there, welcome to **crackVOCAB** 📘")
     st.write("Master **advanced English vocabulary** with bilingual (English–French–Arabic) explanations. Built for focus and flow.")
@@ -277,21 +214,18 @@ if st.session_state.mode == "Home":
     st.markdown("---")
     st.markdown(
         """
-        **How it works**
+        **How it works**  
         1) Open **Words** (left sidebar), pick any word (search or scroll).  
         2) Click **Show Definition**, then **Mark as Learned** when you’re ready.  
         3) Your **streak** (smooth line) and **lifetime progress** update automatically.  
-        4) Use **Quiz** to practice only your **recently learned** words (last 10 by default).
+        4) Use **Quiz** to practice only your **recently learned** words (last 10).
         """
     )
 
-# =========================
-# WORDS
-# =========================
+# ---------- WORDS ----------
 elif st.session_state.mode == "Words":
-    set_page_bg_color(BEIGE)        # Words also uses beige
+    set_page_bg_color(BEIGE)
 
-    # current row
     row = data.iloc[st.session_state.index]
 
     st.header("Words")
@@ -299,19 +233,16 @@ elif st.session_state.mode == "Words":
 
     c1, c2, c3 = st.columns([1,1,1])
 
-    # Show Definition button
     with c1:
         if st.button("Show Definition"):
             st.session_state.show_def = True
 
-    # Mark as Learned (uses checkbox so it sticks)
     with c2:
-        learned_set = set(progress["learned"])
+        learned_set = set(progress.get("learned", []))
         already = row["word"] in learned_set
         marked = st.checkbox("Mark as Learned", value=already, key=f"learn_{row['word']}")
         if marked and not already:
             progress["learned"].append(row["word"])
-            # maintain recent pool for quiz (last 10)
             rp = progress.get("recent_pool", [])
             rp = [w for w in rp if w != row["word"]]
             rp.append(row["word"])
@@ -320,22 +251,19 @@ elif st.session_state.mode == "Words":
             progress["recent_pool"] = rp
             save_progress(progress)
         elif not marked and already:
-            # unlearn
             progress["learned"] = [w for w in progress["learned"] if w != row["word"]]
-            progress["recent_pool"] = [w for w in progress["recent_pool"] if w != row["word"]]
+            progress["recent_pool"] = [w for w in progress.get("recent_pool", []) if w != row["word"]]
             save_progress(progress)
 
-    # Next / Previous
     with c3:
         if st.button("Next ➜"):
             st.session_state.index = (st.session_state.index + 1) % TOTAL_WORDS
             st.session_state.show_def = False
-        st.write("")  # spacer
+        st.write("")
         if st.button("◀ Previous"):
             st.session_state.index = (st.session_state.index - 1) % TOTAL_WORDS
             st.session_state.show_def = False
 
-    # Definition card
     if st.session_state.show_def:
         st.markdown("### Definition")
         st.markdown(
@@ -347,10 +275,9 @@ elif st.session_state.mode == "Words":
               <p><strong>Example:</strong> {row['example']}</p>
             </div>
             """,
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
 
-    # Reset (optional)
     st.write("")
     if st.button("Reset learned (clear)"):
         progress["learned"] = []
@@ -358,21 +285,17 @@ elif st.session_state.mode == "Words":
         save_progress(progress)
         st.success("Progress cleared.")
 
-# =========================
-# QUIZ
-# =========================
+# ---------- QUIZ ----------
 elif st.session_state.mode == "Quiz":
-    # Quiz uses last 10 learned words (recent_pool)
     pool = progress.get("recent_pool", [])
     if len(pool) < 3:
-        st.info("Learn at least 3 words (and up to 10) to enable the quiz.")
+        st.info("Learn at least 3 words (up to 10) to enable the quiz.")
     else:
         st.header("Quiz")
-        # build a fresh question if none
         if st.session_state.quiz_q is None:
             correct_word = random.choice(pool)
             correct_row = data[data["word"] == correct_word].iloc[0]
-            # wrong choices
+            # 3 wrong choices
             others = data[data["word"] != correct_word].sample(3, random_state=random.randint(0, 9999))
             choices = pd.concat([others, correct_row.to_frame().T]).sample(frac=1, random_state=random.randint(0, 9999))
             st.session_state.quiz_q = correct_row
@@ -394,8 +317,7 @@ elif st.session_state.mode == "Quiz":
                     st.success("Correct! ✅")
                 else:
                     st.error(f"Not quite. Correct answer: {q['definition']}")
-                # prepare next question
-                st.session_state.quiz_q = None
+                st.session_state.quiz_q = None  # next question
 
         with cols[2]:
             if st.button("Reset quiz"):
