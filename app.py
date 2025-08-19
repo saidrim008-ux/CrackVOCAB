@@ -43,6 +43,11 @@ div.stButton > button:hover { filter: brightness(0.97); }
 
 /* Center main column a bit */
 .block-container { padding-top: 1.2rem; }
+/* Sidebar captions (muted text) -> brown */
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] span {    color: #5C4033 !important;   /* rich brown */
+}
+
 </style>
 """, unsafe_allow_html=True)
 
