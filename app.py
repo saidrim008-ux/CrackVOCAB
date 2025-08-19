@@ -39,7 +39,6 @@ div.stButton > button:hover {
 }
 </style>
 """, unsafe_allow_html=True)
-)
 
 # ===================== App setup =====================
 st.set_page_config(page_title="crackVOCAB", page_icon="📘", layout="wide")
