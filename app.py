@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from pathlib import Path
+from datetime import date
 import random
 
 # --------------------------------
@@ -18,7 +19,8 @@ section[data-testid="stSidebar"] { background: #F2DEBE !important; }
   background:#FAF1E3 !important; color:#111 !important; border:1px solid #e3d2b8 !important;
 }
 .stSelectbox > div > div, .stSelectbox > div > div > div { 
-  background:#FAF1E3 !important; color:#111 !important; border:1px solid #e3d2b8 !important;
+  background:#FAF1E3 !important; color:#111 !important; 
+  border:1px solid #e3d2b8 !important;
 }
 [data-baseweb="select"] div[role="listbox"] { background:#FAF1E3 !important; }
 [data-baseweb="select"] div[role="option"] { color:#111 !important; }
@@ -28,6 +30,7 @@ div.stButton > button {
   font-weight:600 !important; padding:.45rem .9rem !important;
 }
 div.stButton > button:hover { filter: brightness(0.97); }
+.block-container { padding-top: 1.2rem; }
 section[data-testid="stSidebar"] p,
 section[data-testid="stSidebar"] span { color: #5C4033 !important; }
 </style>
@@ -50,7 +53,7 @@ data = (
 TOTAL = len(data)
 
 # --------------------------------
-# Session state defaults
+# Session state (defaults)
 # --------------------------------
 defaults = {
     "mode": "welcome",
@@ -59,7 +62,7 @@ defaults = {
     "show_def": False,
     "learned": set(),
     "recent_pool": [],
-    "quiz_index": 0,
+    "quiz_index": 0
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -97,27 +100,27 @@ def toggle_learned():
 # --------------------------------
 def page_welcome():
     st.title("Let's master vocabulary together 💪")
-    st.write("Enter your **name or nickname** to personalize your experience.")
 
-    # Author badge
     st.markdown(
         "<p style='text-align:center; color:#5C4033; font-size:14px;'><i>Built by Rim Said</i></p>",
         unsafe_allow_html=True
     )
 
-    name = st.text_input("Enter your name or nickname", value=st.session_state["username"])
-
+    name = st.text_input("Enter your name or nickname", value=st.session_state.username)
     if st.button("Go 🚀", disabled=(not name.strip())):
-        st.session_state["username"] = name
+        st.session_state.username = name
         st.session_state.mode = "home"
-        st.rerun()
+        st.experimental_rerun()
 
 def sidebar_nav():
     st.sidebar.subheader("Go to")
-    st.session_state.mode = st.sidebar.radio(
+    st.sidebar.radio(
         label="",
-        options=["home", "Words", "Quiz"],
-        index=["home", "Words", "Quiz"].index(st.session_state.mode if st.session_state.mode in ["home","Words","Quiz"] else "home"),
+        options=["Home", "Words", "Quiz"],
+        key="nav_choice",
+        index=["Home","Words","Quiz"].index(
+            "Home" if st.session_state.mode=="home" else st.session_state.mode
+        ),
     )
     st.sidebar.markdown("### 🔥 Streak")
     st.sidebar.caption("1-day streak • view last 30 days")
@@ -127,17 +130,33 @@ def sidebar_nav():
 def page_home():
     name = st.session_state.username or "there"
     st.header(f"Hi {name}, welcome to crackVOCAB 👋")
-    st.write("crackVOCAB helps you master advanced English vocabulary with bilingual explanations.")
+    st.write(
+        "crackVOCAB helps you master **advanced English vocabulary** with bilingual "
+        "(English—French—Arabic) explanations."
+    )
+
     st.subheader("How it works")
     st.markdown("""
-1) Go to **Words**.  
+1) Open **Words**, pick any word.  
 2) Click **Show Definition**, then **Mark as Learned**.  
-3) Your progress updates.  
-4) Use **Quiz** to practice recently learned words.
+3) Progress updates automatically.  
+4) Use **Quiz** to test your last 10 learned words.
 """)
+
+    c1, c2 = st.columns([1,1])
+    with c1:
+        if st.button("Start learning ➜"):
+            st.session_state.mode = "Words"
+            st.rerun()
+    with c2:
+        if st.button("Clear recent pool"):
+            st.session_state.recent_pool = []
+            st.rerun()
 
 def page_words():
     st.sidebar.subheader("Word list")
+    st.sidebar.caption(f"Total words: {TOTAL}")
+
     options = [label_for_row(i) for i in range(TOTAL)]
     current_label = label_for_row(st.session_state.index)
     chosen = st.sidebar.selectbox("Select a word", options, index=options.index(current_label))
@@ -146,9 +165,10 @@ def page_words():
         st.session_state.show_def = False
 
     row = data.iloc[st.session_state.index]
-    st.header(f"{row['word']} ({row['part_of_speech']})")
+    st.header("Words")
+    st.subheader(f"{row['word']} ({row['part_of_speech']})")
 
-    b1, b2, b3 = st.columns(3)
+    b1, b2, b3 = st.columns([1,1,1])
     with b1:
         if st.button("Show Definition"):
             st.session_state.show_def = not st.session_state.show_def
@@ -169,30 +189,43 @@ def page_words():
     if st.session_state.show_def:
         st.markdown("---")
         st.write(f"**Definition:** {row['definition']}")
-        if "french" in row: st.write(f"**French:** {row['french']}")
-        if "arabic" in row: st.write(f"**Arabic:** {row['arabic']}")
-        if "example" in row and isinstance(row["example"], str):
-            st.write(f"**Example:** {row['example']}")
+        st.write(f"**French:** {row.get('french','')}")
+        st.write(f"**Arabic:** {row.get('arabic','')}")
+        ex = row.get('example','')
+        if isinstance(ex, str) and ex.strip():
+            st.write(f"**Example:** {ex}")
 
 def page_quiz():
     st.header("Quiz")
     pool = list(dict.fromkeys(st.session_state.recent_pool))
     if not pool:
-        st.info("Learn some words first to unlock the quiz.")
+        st.info("Your quiz pool is empty. Learn some words first.")
         return
+
+    definitions = {
+        "benevolent": "kind and generous",
+        "candid": "honest and straightforward",
+        "diligent": "showing care and effort",
+        "elated": "very happy",
+        "alacrity": "cheerful readiness",
+        "ambivalent": "having mixed feelings",
+        "anomaly": "something unusual",
+        "antithesis": "direct opposite",
+        "apathetic": "showing no interest",
+        "arduous": "very difficult"
+    }
 
     if st.session_state.quiz_index >= len(pool):
         st.success("🎉 Quiz finished!")
         if st.button("Restart Quiz"):
             st.session_state.quiz_index = 0
+            st.experimental_rerun()
         return
 
     word = pool[st.session_state.quiz_index]
-    row = data[data["word"] == word].iloc[0]
-    correct_def = row["definition"]
+    correct_def = definitions.get(word, "Definition not available")
 
-    # 3 wrong options
-    wrong_defs = data[data["word"] != word]["definition"].sample(min(3, len(data)-1)).tolist()
+    wrong_defs = random.sample([v for k,v in definitions.items() if k != word], 3)
     options = wrong_defs + [correct_def]
     random.shuffle(options)
 
@@ -203,11 +236,11 @@ def page_quiz():
         if choice == correct_def:
             st.success("✅ Correct!")
         else:
-            st.error(f"❌ Wrong. Correct answer: {correct_def}")
+            st.error(f"❌ Wrong. The correct answer is: {correct_def}")
 
     if st.button("Next Question"):
         st.session_state.quiz_index += 1
-        st.rerun()
+        st.experimental_rerun()
 
 # --------------------------------
 # Router
