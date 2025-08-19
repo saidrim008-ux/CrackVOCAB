@@ -2,46 +2,55 @@ import streamlit as st
 import pandas as pd
 import random
 
+# ---------- Config ----------
+LEARNED_LIMIT = 10   # keep the last N learned words
+
 # ---------- Load data ----------
 data = pd.read_csv("words.csv").dropna().reset_index(drop=True)
 
 st.title("📘 crackVOCAB")
-st.write("Master advanced vocabulary with English–French–Arabic flashcards!")
+st.caption("Master advanced vocabulary with English–French–Arabic flashcards!")
 
 # ---------- Session state ----------
 if "index" not in st.session_state:
     st.session_state.index = 0
-
+if "learned_idxs" not in st.session_state:
+    st.session_state.learned_idxs = []  # list of row indices (most recent first)
 if "quiz" not in st.session_state:
-    st.session_state.quiz = {
-        "question_i": 0,   # which question number you are on
-        "score": 0,        # how many correct so far
-        "current": None    # holds the current quiz payload
-    }
+    st.session_state.quiz = {"q": None, "score": 0, "num": 0}
 
 # ---------- Helpers ----------
-def next_word_index():
-    st.session_state.index = (st.session_state.index + 1) % len(data)
+def add_learned(idx: int):
+    # move idx to front; keep only LEARNED_LIMIT
+    if idx in st.session_state.learned_idxs:
+        st.session_state.learned_idxs.remove(idx)
+    st.session_state.learned_idxs.insert(0, idx)
+    st.session_state.learned_idxs = st.session_state.learned_idxs[:LEARNED_LIMIT]
 
-def make_quiz_item():
-    """Return a dict with: prompt, choices, correct_idx, row (the pandas row)."""
-    # pick one correct row
-    i = random.randrange(len(data))
+def next_index(delta: int):
+    st.session_state.index = (st.session_state.index + delta) % len(data)
+
+def make_quiz_item(pool):
+    """pool = list of row indices to quiz from"""
+    i = random.choice(pool)
     row = data.iloc[i]
 
-    # Build choices: correct word + 3 random other words
-    other_indices = list(range(len(data)))
-    other_indices.remove(i)
-    wrong_idx = random.sample(other_indices, k=min(3, len(other_indices)))
-    choices = [row["word"]] + [data.iloc[j]["word"] for j in wrong_idx]
+    # choices also from pool; up to 4 options
+    others = pool.copy()
+    others.remove(i)
+    pick = random.sample(others, k=min(3, len(others))) if others else []
+    choices = [row["word"]] + [data.iloc[j]["word"] for j in pick]
     random.shuffle(choices)
-    correct_idx = choices.index(row["word"])
-
+    correct = choices.index(row["word"])
     prompt = f'Which word matches this definition?\n\n**{row["definition"]}**'
-    return {"prompt": prompt, "choices": choices, "correct_idx": correct_idx, "row": row}
+    return {"prompt": prompt, "choices": choices, "correct": correct, "row": row}
 
-# ---------- Sidebar mode ----------
+# ---------- Sidebar ----------
 mode = st.sidebar.radio("Mode", ["Learn", "Quiz"])
+st.sidebar.write(f"✅ Learned pool: **{len(st.session_state.learned_idxs)} / {LEARNED_LIMIT}**")
+if st.sidebar.button("Clear learned pool"):
+    st.session_state.learned_idxs = []
+    st.success("Learned pool cleared.")
 
 # ====================== LEARN MODE ======================
 if mode == "Learn":
@@ -54,58 +63,51 @@ if mode == "Learn":
         st.write(f"**Arabic:** {row['arabic']}")
         st.write(f"**Example:** {row['example']}")
 
-    cols = st.columns(2)
+    cols = st.columns(3)
     if cols[0].button("⬅️ Previous"):
-        st.session_state.index = (st.session_state.index - 1) % len(data)
-        st.rerun()
-    if cols[1].button("Next ➡️"):
-        next_word_index()
-        st.rerun()
+        next_index(-1); st.rerun()
+    if cols[1].button("Mark as Learned ✅"):
+        add_learned(st.session_state.index)
+        st.toast("Added to learned pool"); st.rerun()
+    if cols[2].button("Next ➡️"):
+        next_index(1); st.rerun()
 
 # ====================== QUIZ MODE ======================
 else:
-    # prepare a question if none loaded yet
-    if st.session_state.quiz["current"] is None:
-        st.session_state.quiz["current"] = make_quiz_item()
+    pool = st.session_state.learned_idxs
+    if not pool:
+        st.info("Your learned pool is empty. Go to **Learn** mode and mark some words ✅.")
+    else:
+        # ensure we have a question ready
+        if st.session_state.quiz["q"] is None:
+            st.session_state.quiz["q"] = make_quiz_item(pool)
 
-    q = st.session_state.quiz["current"]
-    st.subheader(f"Quiz • Question {st.session_state.quiz['question_i'] + 1}")
-    st.markdown(q["prompt"])
+        q = st.session_state.quiz["q"]
+        st.subheader(f"Quiz (from your {len(pool)} learned words) • Q{st.session_state.quiz['num'] + 1}")
+        st.markdown(q["prompt"])
 
-    # show choices as radio buttons
-    choice = st.radio("Choose one:", q["choices"], index=None)
+        choice = st.radio("Choose one:", q["choices"], index=None, key=f"radio_{st.session_state.quiz['num']}")
 
-    # Check answer
-    if st.button("Check"):
-        if choice is None:
-            st.warning("Pick an answer first 🙂")
-        else:
-            correct = (choice == q["choices"][q["correct_idx"]])
-            if correct:
-                st.success("✅ Correct!")
-                st.session_state.quiz["score"] += 1
+        cols = st.columns(2)
+        if cols[0].button("Check"):
+            if choice is None:
+                st.warning("Pick an answer first 🙂")
             else:
-                st.error(f"❌ Not quite. Correct answer: **{q['choices'][q['correct_idx']]}**")
+                if q["choices"].index(choice) == q["correct"]:
+                    st.success("✅ Correct!")
+                    st.session_state.quiz["score"] += 1
+                else:
+                    st.error(f"❌ Correct answer: **{q['choices'][q['correct']]}**")
+                with st.expander("Explanation"):
+                    r = q["row"]
+                    st.write(f"**Definition:** {r['definition']}")
+                    st.write(f"**French:** {r['french']}")
+                    st.write(f"**Arabic:** {r['arabic']}")
+                    st.write(f"**Example:** {r['example']}")
 
-            # Show bilingual info + example
-            row = q["row"]
-            with st.expander("See explanation"):
-                st.write(f"**Definition:** {row['definition']}")
-                st.write(f"**French:** {row['french']}")
-                st.write(f"**Arabic:** {row['arabic']}")
-                st.write(f"**Example:** {row['example']}")
+        if cols[1].button("Next Question ➡️"):
+            st.session_state.quiz["num"] += 1
+            st.session_state.quiz["q"] = make_quiz_item(pool)
+            st.rerun()
 
-    # Next question
-    cols = st.columns(2)
-    if cols[0].button("Next Question ➡️"):
-        st.session_state.quiz["question_i"] += 1
-        st.session_state.quiz["current"] = make_quiz_item()
-        st.rerun()
-
-    # Reset quiz
-    if cols[1].button("Reset Quiz ↺"):
-        st.session_state.quiz = {"question_i": 0, "score": 0, "current": make_quiz_item()}
-        st.rerun()
-
-    # Score display
-    st.info(f"Score: **{st.session_state.quiz['score']}** / {st.session_state.quiz['question_i']}")
+        st.info(f"Score: **{st.session_state.quiz['score']}** / {st.session_state.quiz['num']}")
