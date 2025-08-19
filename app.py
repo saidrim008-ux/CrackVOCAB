@@ -7,27 +7,26 @@ from pathlib import Path
 # ===================== App setup =====================
 st.set_page_config(page_title="crackVOCAB", page_icon="📘", layout="wide")
 
-# Global CSS (all text black, study-vibe background, rounded buttons/cards)
+# ===================== Global CSS =====================
 st.markdown(
     """
     <style>
-      /* Background */
+      /* Background + default text color */
       .stApp {
         background: linear-gradient(180deg, #f6fbff 0%, #eef3ff 100%);
         color: #111 !important;
       }
-      /* Force dark text everywhere */
-      html, body, [class*="st-"], .stMarkdown, .stMarkdown p, .stMarkdown span {
-        color: #111 !important;
-      }
+      html, body, [class*="st-"], .stMarkdown, .stMarkdown p, .stMarkdown span { color: #111 !important; }
+
       /* Headings */
       h1, h2, h3, .stMarkdown h1, .stMarkdown h2 {
         font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
         color: #111 !important;
       }
-      /* Buttons */
+
+      /* Default buttons (Show Definition, Previous, Next) */
       div.stButton > button {
-        background: #2563eb;  /* blue */
+        background: #2563eb;
         color: #fff !important;
         border: 0;
         padding: 10px 16px;
@@ -35,7 +34,8 @@ st.markdown(
         font-weight: 600;
       }
       div.stButton > button:hover { background: #1e4fbf; }
-      /* Cards */
+
+      /* Card look */
       .card {
         background: #ffffffcc;
         border: 1px solid #e6ecff;
@@ -43,12 +43,14 @@ st.markdown(
         border-radius: 16px;
         padding: 1.1rem 1.2rem;
       }
+
       /* Sidebar */
       section[data-testid="stSidebar"] {
         background: #f7f9ff;
         border-right: 1px solid #e9efff;
         color: #111 !important;
       }
+
       /* Streak bar (smooth line) */
       .streak-wrap {
         background: #e5edff;
@@ -63,6 +65,25 @@ st.markdown(
         transition: width 300ms ease;
       }
       .muted { color: #5b6b7a !important; }
+
+      /* Special button: Mark as Learned (blue, pill) */
+      .learn-btn button {
+        background: #1d4ed8 !important;
+        color: #fff !important;
+        border-radius: 22px !important;
+        padding: 10px 18px !important;
+      }
+      .learn-btn button:hover { background: #163fa3 !important; }
+
+      /* Special button: Home (green) */
+      .home-btn button {
+        background: #22c55e !important;
+        color: #fff !important;
+        border-radius: 10px !important;
+        padding: 10px 16px !important;
+        font-weight: 700 !important;
+      }
+      .home-btn button:hover { background: #16a34a !important; }
     </style>
     """,
     unsafe_allow_html=True
@@ -71,13 +92,13 @@ st.markdown(
 # ===================== Config =====================
 LEARNED_LIMIT = 10                 # recent pool for Quiz
 PROGRESS_FILE = Path("progress.json")
-STREAK_WINDOW = 30                 # visual window for the streak bar
+STREAK_WINDOW = 30                 # visual window for streak bar
 
 # ===================== Data =====================
 data = (
     pd.read_csv("words.csv")
       .dropna()
-      .drop_duplicates(subset=["word"])   # avoid exact duplicate words
+      .drop_duplicates(subset=["word"])
       .reset_index(drop=True)
 )
 TOTAL_WORDS = len(data)
@@ -128,15 +149,15 @@ def streak_bar_html(streak: int, window: int = STREAK_WINDOW):
 
 # ===================== Session =====================
 if "mode" not in st.session_state:
-    st.session_state.mode = "Welcome"   # SCREEN 1 first
+    st.session_state.mode = "Welcome"   # first screen
 if "index" not in st.session_state:
     st.session_state.index = 0
 if "learned_recent" not in st.session_state:
-    st.session_state.learned_recent = []  # indices for recent pool (quiz)
+    st.session_state.learned_recent = []
 if "quiz" not in st.session_state:
     st.session_state.quiz = {"q": None, "score": 0, "num": 0}
 
-# ===================== Small helpers =====================
+# ===================== Helpers =====================
 def add_recent(idx):
     L = st.session_state.learned_recent
     if idx in L: L.remove(idx)
@@ -162,15 +183,13 @@ def make_quiz_item(pool):
         "row": row,
     }
 
-# ===================== Sidebar (hide on Welcome) =====================
+# ===================== Sidebar (hidden on Welcome) =====================
 if st.session_state.mode != "Welcome":
-    # Navigation
     st.session_state.mode = st.sidebar.radio(
         "Go to", ["Home", "Words", "Quiz"],
         index=["Home","Words","Quiz"].index(st.session_state.mode) if st.session_state.mode in ["Home","Words","Quiz"] else 0
     )
 
-    # Word list (not on Home)
     if st.session_state.mode != "Home":
         st.sidebar.markdown("### 📚 Word list")
         st.sidebar.write(f"Total words: **{TOTAL_WORDS}**")
@@ -188,7 +207,6 @@ if st.session_state.mode != "Welcome":
         else:
             st.sidebar.info("No words match your search.")
 
-    # Streak + progress
     with st.sidebar:
         st.markdown("---")
         streak = consecutive_streak(progress["dates"])
@@ -201,13 +219,15 @@ if st.session_state.mode != "Welcome":
         st.progress((mastered_count / TOTAL_WORDS) if TOTAL_WORDS else 0.0)
 
         st.write(f"Quiz pool (recent): **{len(st.session_state.learned_recent)} / {LEARNED_LIMIT}**")
-        if st.button("Clear recent pool"):
-            st.session_state.learned_recent = []
-            st.success("Recent pool cleared.")
+        # Green Home button in sidebar (visible on any page after Welcome)
+        st.markdown('<div class="home-btn">', unsafe_allow_html=True)
+        if st.button("🏠 Home", key="home_sidebar"):
+            st.session_state.mode = "Home"; st.experimental_rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # ===================== Pages =====================
 
-# ---- SCREEN 1: Welcome Gate (enter nickname) ----
+# ---- Welcome (enter name) ----
 if st.session_state.mode == "Welcome":
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.title("Let’s master vocabulary together 💪")
@@ -215,7 +235,6 @@ if st.session_state.mode == "Welcome":
     default_name = progress.get("name") or ""
     nickname = st.text_input("Enter your name or nickname", value=default_name, placeholder="e.g., Youssef / Laila / Ayman")
 
-    # Show saved name (if any)
     if progress.get("name"):
         st.caption(f"Saved name: **{progress['name']}**")
 
@@ -226,13 +245,13 @@ if st.session_state.mode == "Welcome":
             if not progress.get("first_seen"):
                 progress["first_seen"] = str(date.today())
             save_progress(progress)
-            st.session_state.mode = "Home"   # move to SCREEN 2
-            st.rerun()
+            st.session_state.mode = "Home"
+            st.experimental_rerun()
         else:
             st.warning("Please enter your name or nickname to continue.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---- SCREEN 2: Home (intro) ----
+# ---- Home (intro) ----
 elif st.session_state.mode == "Home":
     user = progress.get("name") or "there"
     st.markdown("<div class='card'>", unsafe_allow_html=True)
@@ -268,14 +287,20 @@ elif st.session_state.mode == "Words":
 
     c1, c2, c3 = st.columns(3)
     if c1.button("⬅️ Previous"):
-        next_index(-1); st.rerun()
-    if c2.button("Mark as Learned ✅", help="Adds to streak, mastered list, and quiz pool"):
+        next_index(-1); st.experimental_rerun()
+
+    # Special styled button: Mark as Learned (blue, pill)
+    st.markdown('<div class="learn-btn">', unsafe_allow_html=True)
+    if c2.button("Mark as Learned ✅", key="learn_btn", help="Adds to streak, mastered list, and quiz pool"):
         mark_active_today()
         add_mastered(st.session_state.index)
         add_recent(st.session_state.index)
-        st.toast("Added to learned + streak updated"); st.rerun()
+        st.toast("Added to learned + streak updated")
+        st.experimental_rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
     if c3.button("Next ➡️"):
-        next_index(1); st.rerun()
+        next_index(1); st.experimental_rerun()
 
 # ---- Quiz ----
 else:
@@ -313,6 +338,6 @@ else:
         if c2.button("Next Question ➡️"):
             st.session_state.quiz["num"] += 1
             st.session_state.quiz["q"] = make_quiz_item(pool)
-            st.rerun()
+            st.experimental_rerun()
 
         st.info(f"Score: **{st.session_state.quiz['score']}** / {st.session_state.quiz['num']}")
