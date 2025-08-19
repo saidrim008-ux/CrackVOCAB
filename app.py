@@ -28,10 +28,12 @@ st.markdown(
       div.stButton > button {{
         background: {BRAND_PRIMARY};
         color: white;
-        border: 0;
-        padding: 0.6rem 1.1rem;
-        border-radius: 12px;
-        font-weight: 600;
+        ...
+      }}
+      ...
+    </style>
+    """,
+    unsafe_allow_html=True
       }}
       div.stButton > button:hover {{
         background: #1e4fbf;
