@@ -295,6 +295,6 @@ if st.session_state.quiz_index < len(recent_words):
   if st.button("Next Question"):
                 st.session_state.quiz_index += 1
                 st.experimental_rerun()
- else:
+  else:
         st.success("🎉 Quiz finished!")
 
