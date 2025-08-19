@@ -5,7 +5,7 @@ import pandas as pd
 data = pd.read_csv("words.csv")
 
 st.title("📘 crackVOCAB")
-st.write("Master SAT/TOEFL vocabulary with English–French–Arabic flashcards!")
+st.write("Master advanced vocabulary with English–French–Arabic flashcards!")
 
 # Pick a random word
 word = data.sample(1).iloc[0]
