@@ -231,23 +231,23 @@ def page_quiz():
 
 # --------------------------------
 # Router
-# --------------------------------
-    if st.session_state.mode == "welcome":
+# ------------------------------             
+if st.session_state.mode == "welcome":
     page_welcome()
-    else:
+else:
     sidebar_nav()
     # honor sidebar navigation
     dest = st.session_state.get("nav_choice", "Home")
-    if dest == "Home":
+ if dest == "Home":
         st.session_state.mode = "home"
         page_home()
-    elif dest == "Words":
+ elif dest == "Words":
         st.session_state.mode = "Words"
         page_words()
-    else:
+ else:
         st.session_state.mode = "Quiz"
         page_quiz()
-    elif mode == "Quiz":
+ elif mode == "Quiz":
     st.header("Quiz")
     st.write("You'll be quizzed on recently learned words (last 10).")
 
@@ -258,11 +258,10 @@ def page_quiz():
     import random
 
     # Pick a word to quiz
-        if "quiz_index" not in st.session_state:
+if "quiz_index" not in st.session_state:
         st.session_state.quiz_index = 0
         random.shuffle(recent_words)  # shuffle order
-
-        if st.session_state.quiz_index < len(recent_words):
+if st.session_state.quiz_index < len(recent_words):
         word = recent_words[st.session_state.quiz_index]
         
         # Example definitions (replace with your real dict or DB)
@@ -288,16 +287,14 @@ def page_quiz():
 
         st.subheader(f"What does **{word}** mean?")
         choice = st.radio("Choose one:", options)
-
-        if st.button("Check Answer"):
-        if choice == correct_def:
+  if st.button("Check Answer"):
+  if choice == correct_def:
                 st.success("✅ Correct!")
-        else:
+  else:
                 st.error(f"❌ Wrong. The correct answer is: {correct_def}")
-
-        if st.button("Next Question"):
+  if st.button("Next Question"):
                 st.session_state.quiz_index += 1
                 st.experimental_rerun()
-        else:
+ else:
         st.success("🎉 Quiz finished!")
 
