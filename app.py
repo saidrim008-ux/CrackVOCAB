@@ -5,6 +5,29 @@ import pandas as pd
 import random, json
 from datetime import date, timedelta
 from pathlib import Path
+# Ensure progress dictionary
+progress = progress if isinstance(progress, dict) else {}
+progress.setdefault("name", "")
+progress.setdefault("learned", [])
+progress.setdefault("recent_pool", [])
+progress.setdefault("streak_days", 0)
+
+# --------------------------
+# FORCE WELCOME SCREEN FIRST
+# --------------------------
+if not progress.get("name"):  
+    st.markdown("<h1 style='color:#111;'>Let’s master our vocabulary together 💪</h1>", unsafe_allow_html=True)
+    name = st.text_input("Enter your name or nickname", "")
+    if st.button("Go →"):
+        clean = (name or "").strip()
+        if clean:
+            progress["name"] = clean
+            try:
+                save_progress(progress)
+            except Exception:
+                pass
+            st.rerun()  # refresh → now will go to Home
+    st.stop()  # ⛔ stop here, don’t show sidebar or other pages
 
 # =========================
 # THEME & PAGE CONFIG
