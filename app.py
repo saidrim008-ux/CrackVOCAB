@@ -114,6 +114,18 @@ def toggle_learned():
 def page_welcome():
     st.title("Let’s master vocabulary together 💪")
     st.write("Enter your **name or nickname** to personalize your experience.")
+  if "username" not in st.session_state:
+    st.title("Let's master vocabulary together 💪")
+    name = st.text_input("Enter your name or nickname")
+    if st.button("Go ➡️"):
+        st.session_state["username"] = name
+        st.experimental_rerun()
+
+    # ✅ Author name only here on the first screen
+    st.markdown(
+        "<p style='text-align:center; color:#5C4033; font-size:14px;'>Built by Rim Said</p>",
+        unsafe_allow_html=True
+    )
     name = st.text_input("Enter your name or nickname", value=st.session_state.name)
     if name != st.session_state.name:
         st.session_state.name = name
@@ -236,28 +248,57 @@ else:
     else:
         st.session_state.mode = "Quiz"
         page_quiz()
-# --- Author credit (show on Home only) ---
-st.markdown(
-    """
-    <style>
-      .home-author-badge{
-        position:absolute; 
-        top:10px; 
-        right:20px; 
-        background:#f1f3f5;      /* light grey chip */
-        color:#5c4033;            /* warm brown text */
-        padding:6px 10px; 
-        border-radius:10px; 
-        font-size:13px; 
-        font-weight:600;
-        box-shadow:0 1px 2px rgba(0,0,0,.06);
-      }
-      /* On small screens, don’t overlap; place it below the header */
-      @media (max-width: 768px){
-        .home-author-badge{ position:static; display:inline-block; margin-left:auto; }
-      }
-    </style>
-    <div class="home-author-badge">Built by Rim Said</div>
-    """,
-    unsafe_allow_html=True
-)
+      elif mode == "Quiz":
+    st.header("Quiz")
+    st.write("You'll be quizzed on recently learned words (last 10).")
+
+    # Get last 10 learned words (replace with your own list logic)
+    recent_words = ["benevolent", "candid", "diligent", "elated", "alacrity", 
+                    "ambivalent", "anomaly", "antithesis", "apathetic", "arduous"]
+
+    import random
+
+    # Pick a word to quiz
+    if "quiz_index" not in st.session_state:
+        st.session_state.quiz_index = 0
+        random.shuffle(recent_words)  # shuffle order
+
+    if st.session_state.quiz_index < len(recent_words):
+        word = recent_words[st.session_state.quiz_index]
+        
+        # Example definitions (replace with your real dict or DB)
+        definitions = {
+            "benevolent": "kind and generous",
+            "candid": "honest and straightforward",
+            "diligent": "showing care and effort",
+            "elated": "very happy",
+            "alacrity": "cheerful readiness",
+            "ambivalent": "having mixed feelings",
+            "anomaly": "something unusual",
+            "antithesis": "direct opposite",
+            "apathetic": "showing no interest",
+            "arduous": "very difficult"
+        }
+
+        correct_def = definitions[word]
+
+        # Generate 3 random wrong answers
+        wrong_defs = random.sample([v for k,v in definitions.items() if k != word], 3)
+        options = wrong_defs + [correct_def]
+        random.shuffle(options)
+
+        st.subheader(f"What does **{word}** mean?")
+        choice = st.radio("Choose one:", options)
+
+        if st.button("Check Answer"):
+            if choice == correct_def:
+                st.success("✅ Correct!")
+            else:
+                st.error(f"❌ Wrong. The correct answer is: {correct_def}")
+
+            if st.button("Next Question"):
+                st.session_state.quiz_index += 1
+                st.experimental_rerun()
+    else:
+        st.success("🎉 Quiz finished!")
+
