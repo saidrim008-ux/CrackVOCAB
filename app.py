@@ -3,6 +3,63 @@ import pandas as pd
 import random, json, base64
 from datetime import date, timedelta
 from pathlib import Path
+import streamlit as st
+import pandas as pd
+import random, json
+from datetime import date, timedelta
+from pathlib import Path
+
+# ----------------- COLORS -----------------
+RUST = "#d99072"        # lighter sidebar
+BEIGE = "#e3b896"       # background for Home + Words
+SKY_BLUE = "#38bdf8"    # main button color (sky blue)
+SKY_BLUE_HOVER = "#0ea5e9"  # darker hover
+# ------------------------------------------
+
+# ---------- Global CSS ----------
+st.set_page_config(page_title="crackVOCAB", page_icon="📘", layout="wide")
+
+st.markdown(
+    f"""
+    <style>
+    /* ... (all that CSS code I gave you) ... */
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# ---------- Sidebar color ----------
+def set_sidebar_color(color: str):
+    st.markdown(
+        f"""
+        <style>
+        [data-testid="stSidebar"] {{
+            background-color: {color} !important;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+set_sidebar_color(RUST)
+
+# ---------- Page background helper ----------
+def set_page_bg_color(color: str):
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background-color: {color} !important;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+# ---------- Example: set Home + Words to same beige ----------
+current_page = st.session_state.get("page", "Home")  # depends how you route pages
+if current_page in ["Home", "Words"]:
+    set_page_bg_color(BEIGE)
 
 # ===================== App setup =====================
 st.set_page_config(page_title="crackVOCAB", page_icon="📘", layout="wide")
