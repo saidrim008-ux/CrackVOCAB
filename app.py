@@ -128,7 +128,7 @@ def streak_bar_html(streak: int, window: int = STREAK_WINDOW):
 
 # ===================== Session =====================
 if "mode" not in st.session_state:
-    st.session_state.mode = "Welcome"   # ask for name first
+    st.session_state.mode = "Welcome"   # SCREEN 1 first
 if "index" not in st.session_state:
     st.session_state.index = 0
 if "learned_recent" not in st.session_state:
@@ -207,31 +207,36 @@ if st.session_state.mode != "Welcome":
 
 # ===================== Pages =====================
 
-# ---- Welcome (enter name) ----
+# ---- SCREEN 1: Welcome Gate (enter nickname) ----
 if st.session_state.mode == "Welcome":
     st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.header("Welcome to your favorite spot ✨")
-    st.write("Enter your **full name** to personalize your experience.")
+    st.title("Let’s master vocabulary together 💪")
+    st.write("Enter your **name or nickname** to personalize your experience.")
     default_name = progress.get("name") or ""
-    name = st.text_input("Full name", value=default_name, placeholder="e.g., Youssef Said")
+    nickname = st.text_input("Enter your name or nickname", value=default_name, placeholder="e.g., Youssef / Laila / Ayman")
+
+    # Show saved name (if any)
+    if progress.get("name"):
+        st.caption(f"Saved name: **{progress['name']}**")
+
     if st.button("Go →"):
-        clean = name.strip()
+        clean = nickname.strip()
         if clean:
             progress["name"] = clean
             if not progress.get("first_seen"):
                 progress["first_seen"] = str(date.today())
             save_progress(progress)
-            st.session_state.mode = "Home"
+            st.session_state.mode = "Home"   # move to SCREEN 2
             st.rerun()
         else:
-            st.warning("Please enter your full name to continue.")
+            st.warning("Please enter your name or nickname to continue.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---- Home (intro) ----
+# ---- SCREEN 2: Home (intro) ----
 elif st.session_state.mode == "Home":
     user = progress.get("name") or "there"
     st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.header(f"Hi {user}, welcome to crackVOCAB 👋")
+    st.header(f"Hi there, **{user}** — welcome to crackVOCAB 👋")
     st.write(
         """
 **crackVOCAB** helps you master **advanced English vocabulary** with bilingual
