@@ -112,26 +112,25 @@ def toggle_learned():
 # PAGES
 # --------------------------------
 def page_welcome():
-    st.title("Let’s master vocabulary together 💪")
-    st.write("Enter your **name or nickname** to personalize your experience.")
-  if "username" not in st.session_state:
     st.title("Let's master vocabulary together 💪")
-    name = st.text_input("Enter your name or nickname")
-    if st.button("Go ➡️"):
-        st.session_state["username"] = name
-        st.experimental_rerun()
+    st.write("Enter your **name or nickname** to personalize your experience.")
 
-    # ✅ Author name only here on the first screen
+    # Author name only on first screen
     st.markdown(
-        "<p style='text-align:center; color:#5C4033; font-size:14px;'>Built by Rim Said</p>",
+        "<p style='text-align:center; color:#5C4033; font-size:14px;'><i>Built by Rim Said</i></p>",
         unsafe_allow_html=True
     )
-    name = st.text_input("Enter your name or nickname", value=st.session_state.name)
-    if name != st.session_state.name:
-        st.session_state.name = name
-    if st.button("Go ➜", use_container_width=False, type="primary", disabled=(not name.strip())):
+
+    # Handle username
+    if "username" not in st.session_state:
+        st.session_state["username"] = ""
+
+    name = st.text_input("Enter your name or nickname", value=st.session_state["username"])
+
+    if st.button("Go 🚀", use_container_width=False, type="primary", disabled=(not name.strip())):
+        st.session_state["username"] = name
         st.session_state.mode = "home"
-        st.rerun()
+        st.experimental_rerun()
 
 def sidebar_nav():
     st.sidebar.subheader("Go to")
