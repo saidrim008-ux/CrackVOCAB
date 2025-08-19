@@ -15,22 +15,35 @@ BG_GRADIENT   = "linear-gradient(180deg, #f6fbff 0%, #f1f5ff 100%)"
 # ===================== Global style =====================
 st.set_page_config(page_title="crackVOCAB", page_icon="📘", layout="wide")
 st.markdown(
-    f"""
+    """
     <style>
-      .stApp {{
-        background: {BG_GRADIENT};
-      }}
-      /* Headings */
-      h1, h2, h3, .stMarkdown h1, .stMarkdown h2 {{
+    /* App background */
+    .stApp {
+        background: linear-gradient(135deg, #f9fafb, #e3e6f0);
+    }
+
+    /* Headings */
+    h1, h2, h3, .stMarkdown h1, .stMarkdown h2 {
         font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-      }}
-      /* Buttons */
-      div.stButton > button {{
-        background: {BRAND_PRIMARY};
+        color: #111 !important; /* black text */
+    }
+
+    /* Normal text */
+    .stMarkdown, p, li, span {
+        color: #111 !important; /* black text */
+    }
+
+    /* Buttons */
+    div.stButton > button {
+        background: #4CAF50;
         color: white;
-        ...
-      }}
-      ...
+        border-radius: 8px;
+        padding: 8px 16px;
+        border: none;
+    }
+    div.stButton > button:hover {
+        background: #45a049;
+    }
     </style>
     """,
     unsafe_allow_html=True
