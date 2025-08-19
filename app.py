@@ -122,6 +122,28 @@ def load_words():
     return df[cols]
 
 def load_progress():
+    # -------------------------
+# STREAK UPDATE (safe)
+# -------------------------
+today = date.today()
+# keys are guaranteed by the defaults above, but keep it safe:
+progress.setdefault("last_open", str(today))
+progress.setdefault("streak_days", 0)
+
+last_open = date.fromisoformat(progress["last_open"])
+
+if today > last_open:
+    if (today - last_open).days == 1:
+        progress["streak_days"] += 1
+    else:
+        progress["streak_days"] = 1
+    progress["last_open"] = str(today)
+    save_progress(progress)
+elif progress["streak_days"] == 0:
+    progress["streak_days"] = 1
+    progress["last_open"] = str(today)
+    save_progress(progress)
+
     if PROGRESS_FILE.exists():
         try:
             return json.loads(PROGRESS_FILE.read_text(encoding="utf-8"))
@@ -141,6 +163,8 @@ def save_progress(p):
 
 data = load_words()
 TOTAL_WORDS = len(data)
+st.caption(f"Words mastered: **{len(progress.get('learned', []))} / {TOTAL_WORDS}**")
+
 progress = load_progress()
 
 # -------------------------
