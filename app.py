@@ -219,10 +219,10 @@ if st.session_state.mode != "Welcome":
         st.progress((mastered_count / TOTAL_WORDS) if TOTAL_WORDS else 0.0)
 
         st.write(f"Quiz pool (recent): **{len(st.session_state.learned_recent)} / {LEARNED_LIMIT}**")
-        # Green Home button in sidebar (visible on any page after Welcome)
+        # Optional Home button in sidebar
         st.markdown('<div class="home-btn">', unsafe_allow_html=True)
         if st.button("🏠 Home", key="home_sidebar"):
-            st.session_state.mode = "Home"; st.experimental_rerun()
+            st.session_state.mode = "Home"; st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
 # ===================== Pages =====================
@@ -246,7 +246,7 @@ if st.session_state.mode == "Welcome":
                 progress["first_seen"] = str(date.today())
             save_progress(progress)
             st.session_state.mode = "Home"
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.warning("Please enter your name or nickname to continue.")
     st.markdown("</div>", unsafe_allow_html=True)
@@ -287,7 +287,7 @@ elif st.session_state.mode == "Words":
 
     c1, c2, c3 = st.columns(3)
     if c1.button("⬅️ Previous"):
-        next_index(-1); st.experimental_rerun()
+        next_index(-1); st.rerun()
 
     # Special styled button: Mark as Learned (blue, pill)
     st.markdown('<div class="learn-btn">', unsafe_allow_html=True)
@@ -296,11 +296,11 @@ elif st.session_state.mode == "Words":
         add_mastered(st.session_state.index)
         add_recent(st.session_state.index)
         st.toast("Added to learned + streak updated")
-        st.experimental_rerun()
+        st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
     if c3.button("Next ➡️"):
-        next_index(1); st.experimental_rerun()
+        next_index(1); st.rerun()
 
 # ---- Quiz ----
 else:
