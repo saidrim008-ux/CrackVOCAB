@@ -34,7 +34,7 @@ st.markdown(
     </style>
     """,
     unsafe_allow_html=True
-      }}
+)
       div.stButton > button:hover {{
         background: #1e4fbf;
       }}
