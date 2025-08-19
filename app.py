@@ -8,6 +8,51 @@ import pandas as pd
 import random, json
 from datetime import date, timedelta
 from pathlib import Path
+st.markdown(
+    f"""
+    <style>
+      /* Sidebar color */
+      [data-testid="stSidebar"] {{
+          background-color: {RUST} !important;
+      }}
+
+      /* Default text */
+      html, body, .stApp {{
+        color: #111 !important;
+      }}
+
+      /* Inputs (search, dropdown, date) */
+      input, textarea, select, div[data-baseweb="select"], .stDateInput input {{
+        background-color: #fff !important;
+        color: #111 !important;
+        border: 1px solid #ccc !important;
+        border-radius: 10px !important;
+      }}
+
+      /* Buttons */
+      div.stButton > button, .stButton button {{
+        background: {SKY_BLUE} !important;
+        color: #fff !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 10px 16px !important;
+        font-weight: 600 !important;
+      }}
+      div.stButton > button:hover, .stButton button:hover {{
+        background: {SKY_BLUE_HOVER} !important;
+      }}
+
+      /* Checkbox / Mark as Learned */
+      div.stCheckbox > label span, .stCheckbox input {{
+        background: #fff !important;
+        color: #111 !important;
+        border: 2px solid {SKY_BLUE} !important;
+        border-radius: 6px !important;
+      }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 # ----------------- COLORS -----------------
 RUST = "#d99072"        # lighter sidebar
@@ -361,6 +406,7 @@ elif st.session_state.mode == "Home":
 
 # ---- Words (Learn) ----
 elif st.session_state.mode == "Words":
+    set_page_bg_color(BEIGE)   # <<< this sets beige background
     set_sidebar_color(RUST)
     # gentle default gradient for content area
     st.markdown(
