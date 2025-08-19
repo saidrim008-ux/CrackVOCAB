@@ -247,7 +247,6 @@ elif dest == "Words":
 else:
         st.session_state.mode = "Quiz"
         page_quiz()
-elif st.session_state.mode == "Quiz":
     st.header("Quiz")
     st.write("You'll be quizzed on recently learned words (last 10).")
 
