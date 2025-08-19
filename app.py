@@ -5,6 +5,60 @@ import pandas as pd
 import random, json
 from datetime import date, timedelta
 from pathlib import Path
+# ---------------------------
+# Load progress or create new
+# ---------------------------
+import os, json
+from datetime import date
+
+PROGRESS_FILE = "progress.json"
+
+def load_progress():
+    if os.path.exists(PROGRESS_FILE):
+        with open(PROGRESS_FILE, "r") as f:
+            try:
+                return json.load(f)
+            except:
+                return {}
+    return {}
+
+def save_progress(progress):
+    with open(PROGRESS_FILE, "w") as f:
+        json.dump(progress, f)
+
+# Always start with something valid
+progress = load_progress()
+if not isinstance(progress, dict):
+    progress = {}
+
+progress.setdefault("name", "")
+progress.setdefault("learned", [])
+progress.setdefault("recent_pool", [])
+progress.setdefault("streak_days", 0)
+# ---------------------------
+# Welcome Screen (if no name)
+# ---------------------------
+if not progress.get("name"):
+    st.markdown(
+        """
+        <div style="background-color:#F5F5DC; padding:40px; border-radius:10px;">
+            <h1 style="color:#111; text-align:center;">Let’s master our vocabulary together 💪</h1>
+            <p style="text-align:center;">Enter your <b>name</b> or <b>nickname</b> to personalize your experience.</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    name = st.text_input("Enter your name or nickname", "")
+    if st.button("Go →"):
+        clean = (name or "").strip()
+        if clean:
+            progress["name"] = clean
+            save_progress(progress)
+            st.rerun()  # reload with name set
+
+    st.stop()  # stop here → don’t show the rest
+
 # Ensure progress dictionary
 progress = progress if isinstance(progress, dict) else {}
 progress.setdefault("name", "")
